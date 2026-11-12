@@ -13,6 +13,8 @@ CREATE INDEX IF NOT EXISTS messages_time ON messages(ts);
 CREATE INDEX IF NOT EXISTS messages_chat ON messages(chat_id,ts);
 CREATE INDEX IF NOT EXISTS messages_pending ON messages(analyzed,id);
 CREATE TABLE IF NOT EXISTS chats (id TEXT PRIMARY KEY,name TEXT,kind TEXT);
+CREATE TABLE IF NOT EXISTS chat_members (
+ group_id TEXT NOT NULL,member_chat_id TEXT NOT NULL,PRIMARY KEY(group_id,member_chat_id));
 CREATE TABLE IF NOT EXISTS cursors (source TEXT PRIMARY KEY,last_id INTEGER,last_sync INTEGER);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT);
 CREATE TABLE IF NOT EXISTS projects (
@@ -96,6 +98,21 @@ class Store:
                 changed += 1
             db.execute("INSERT OR REPLACE INTO cursors VALUES (?,?,?)", (source, last_id, now))
         return changed
+
+    def save_directory(self, account, names, members, status):
+        """Replace one account's roster snapshot; unavailable rosters are not kept as current."""
+        with self.connect() as db:
+            for username,name in names.items():
+                if username.startswith('gh_') or username in {'newsapp','brandsessionholder'}:
+                    continue
+                db.execute('INSERT OR REPLACE INTO chats VALUES (?,?,?)',
+                           (account+':'+username,name,'group' if '@chatroom' in username else 'private'))
+            db.execute('DELETE FROM chat_members WHERE substr(group_id,1,?)=?',
+                       (len(account)+1,account+':'))
+            db.executemany('INSERT OR IGNORE INTO chat_members VALUES (?,?)',
+                           [(account+':'+group,account+':'+member) for group,member in members])
+            db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)',
+                       ('directory:'+account,json.dumps(status,ensure_ascii=False)))
 
     def projects(self, include_archived=False):
         projects = self.rows("SELECT * FROM projects ORDER BY updated DESC,id")

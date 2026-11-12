@@ -57,6 +57,7 @@ class WeChatSource:
     def sync(self, store, days=30):
         if getattr(self,'identity',None):store.set('identity',self.identity)
         now = int(time.time())
+        directory = self.sync_directory(store, now)
         floor = store.get("history_floor", now - days * 86400)
         store.set("history_floor", floor)
         changed, total_tables = 0, 0
@@ -116,6 +117,28 @@ class WeChatSource:
                 db.close()
         self.cache.cleanup()
         result = {"ok": True, "at": now, "new_or_changed": changed, "conversations": total_tables,
+                  "directory": directory,
                   "note": "已同步本机记录；图片、语音与文件可按消息读取，未下载内容会单独标明。"}
         store.set("sync", result)
         return result
+
+    def sync_directory(self, store, now):
+        # Same contact / chatroom_member relation used by upstream get_group_members.
+        # Read identifiers directly, avoiding its process-global contact-name cache.
+        members=[]
+        status=dict(at=now,roster_available=False,self_username=getattr(self,'identity',{}).get('username',''))
+        path=self.cache.get('contact/contact.db')
+        if path:
+            try:
+                with closing(sqlite3.connect(path)) as db:
+                    members=db.execute('''SELECT room.username,person.username FROM chatroom_member cm
+                        JOIN contact room ON room.id=cm.room_id
+                        JOIN contact person ON person.id=cm.member_id''').fetchall()
+                status['roster_available']=True
+            except sqlite3.Error as exc:
+                status['note']='群成员表不可用；仍可通过已同步群消息中的发言人发现候选私聊。'
+                status['error']=str(exc)
+        else:
+            status['note']='联系人数据库不可用；群成员线索仅来自已同步消息。'
+        store.save_directory(self.account,self.names,members,status)
+        return status

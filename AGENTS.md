@@ -14,3 +14,4 @@
 
 - When asked to install this repository, follow docs/USAGE.md, check the local Windows/WeChat environment, install in .venv, sync only the user-selected account, and register the absolute executable path with the local MCP client. Ask the user to log in when needed; never ask them to paste credentials or database keys.
 - Fresh installs start with no projects and background analysis disabled. Add only the projects the user explicitly supplies; verify MCP with project_status and an actual user-chosen query.
+- For user-requested WeChat research, discover conversation names first, use strong-match groups to discover member private chats, then read bounded message pages. Membership is a retrieval clue, not proof that a private chat belongs to the project. Save associations only on explicit user confirmation; support optional scope corrections without making every query wait for approval. Keep local indexing separate from model analysis.

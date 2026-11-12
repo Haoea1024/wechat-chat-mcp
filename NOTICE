@@ -24,3 +24,7 @@ components from that project are included.
 Additional modifications: user-configured local projects, stdio MCP configuration
 and feedback tools, opt-in background analysis, and explicit account selection
 when multiple local WeChat directories are present in non-interactive mode.
+
+Additional modifications: metadata-first conversation discovery, account-scoped
+group-member/private-chat matching using the upstream contact schema, explicit
+user-confirmed conversation associations, and bounded paged message retrieval.
