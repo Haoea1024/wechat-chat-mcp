@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wechat-project-assistant"
+version = "0.1.0"
+description = "MCP access to local WeChat chats and attachments for AI agents"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1,<9",
+    "pycryptodome>=3.19,<4",
+    "zstandard>=0.22,<1",
+]
+
+[project.scripts]
+wechat-cli = "wechat_cli.main:cli"
+wechat-assistant = "wechat_assistant.cli:main"
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.12,<2"]
+media = ["pillow>=11", "pypdf>=5", "pypdfium2>=4", "python-docx>=1.2", "python-pptx>=1", "openpyxl>=3.1", "xlrd>=2", "silk-python>=0.2.9", "faster-whisper>=1.2", "imageio-ffmpeg>=0.6", "pywin32>=308; sys_platform == 'win32'"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wechat_cli*", "wechat_assistant*"]
+
+[tool.setuptools.package-data]
+wechat_cli = ["bin/*"]
+wechat_assistant = ["static/*"]

@@ -1,0 +1,26 @@
+WeChat Chat MCP
+Derived from wechat-cli by huohuoer and contributors.
+https://github.com/huohuoer/wechat-cli
+Base commit: a3789232d4f79bf0b30634d9dadbce71e4acd601
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Modifications: added wechat_assistant for structured ingestion, local project
+tracking, Codex analysis, scheduled notifications, a local UI and MCP retrieval.
+Upstream wechat_cli remains the database decoding implementation.
+
+Windows Config.Cipher compatibility is adapted from maomao3334/wechat-cli-plus
+https://github.com/maomao3334/wechat-cli-plus
+Commit: 75a322dd09c7c498536d10ff6935c5d52fd5fd2b
+Apache-2.0. Adapted file: wechat_cli/keys/scanner_windows.py.
+Local implementation: wechat_cli/keys/config_cipher.py.
+
+Image container layout, global_config key derivation offsets and key candidate
+scanning were informed by fanyuantaier/wechatauto-replica (Apache-2.0):
+https://github.com/fanyuantaier/wechatauto-replica
+Commit 733394e42d5d099733a2319ddbddc24d77374042, wechatauto/media.py and db.py.
+Local implementation: wechat_assistant/images.py. No sending or UI automation
+components from that project are included.
+
+Additional modifications: user-configured local projects, stdio MCP configuration
+and feedback tools, opt-in background analysis, and explicit account selection
+when multiple local WeChat directories are present in non-interactive mode.
