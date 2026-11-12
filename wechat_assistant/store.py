@@ -39,6 +39,17 @@ CREATE TABLE IF NOT EXISTS feedback (
 CREATE TABLE IF NOT EXISTS media (
  message_id INTEGER PRIMARY KEY,status TEXT,kind TEXT,path TEXT DEFAULT '',
  text TEXT DEFAULT '',detail TEXT DEFAULT '{}',updated INTEGER);
+CREATE TABLE IF NOT EXISTS project_briefs (
+ project_id INTEGER,version INTEGER,body TEXT NOT NULL,created INTEGER,
+ PRIMARY KEY(project_id,version));
+CREATE TABLE IF NOT EXISTS project_reviewed (
+ project_id INTEGER,message_id INTEGER,digest TEXT,media_digest TEXT DEFAULT '',
+ PRIMARY KEY(project_id,message_id));
+CREATE TABLE IF NOT EXISTS attachment_receipts (
+ token TEXT PRIMARY KEY,message_id INTEGER,body TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS attachment_backups (
+ message_id INTEGER,message_digest TEXT,sha256 TEXT,path TEXT,name TEXT,kind TEXT,
+ quality TEXT,size INTEGER,created INTEGER,PRIMARY KEY(message_id,message_digest,sha256));
 """
 
 
@@ -82,15 +93,17 @@ class Store:
         changed = 0
         with self.connect() as db:
             for m in records:
-                old = db.execute("SELECT text,raw FROM messages WHERE uid=?", (m["uid"],)).fetchone()
-                if old and old["text"] == m["text"] and old["raw"] == m["raw"]:
+                old = db.execute("SELECT id,text,raw,sender,ts,kind FROM messages WHERE uid=?", (m["uid"],)).fetchone()
+                if old and all(old[k]==m[k] for k in ('text','raw','sender','ts','kind')):
                     if 'locator' in m:
                         db.execute('UPDATE messages SET locator=? WHERE uid=?', (m['locator'],m['uid']))
                     continue
                 db.execute("""INSERT INTO messages(uid,chat_id,chat_name,sender,ts,kind,text,raw)
                     VALUES (:uid,:chat_id,:chat_name,:sender,:ts,:kind,:text,:raw)
                     ON CONFLICT(uid) DO UPDATE SET text=excluded.text,raw=excluded.raw,
-                    sender=excluded.sender,chat_name=excluded.chat_name,analyzed=0""", m)
+                    sender=excluded.sender,ts=excluded.ts,kind=excluded.kind,chat_name=excluded.chat_name,analyzed=0""", m)
+                if old:
+                    db.execute('DELETE FROM media WHERE message_id=?',(old['id'],))
                 if 'locator' in m:
                     db.execute('UPDATE messages SET locator=? WHERE uid=?', (m['locator'],m['uid']))
                 db.execute("INSERT OR REPLACE INTO chats VALUES (?,?,?)",

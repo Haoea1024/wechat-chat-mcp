@@ -48,6 +48,7 @@ Thumbs.db
 data/
 wechat-cache/
 media/
+backups/
 models/
 .wechat-cli/
 .wechat-project-assistant*/

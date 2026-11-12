@@ -28,3 +28,7 @@ when multiple local WeChat directories are present in non-interactive mode.
 Additional modifications: metadata-first conversation discovery, account-scoped
 group-member/private-chat matching using the upstream contact schema, explicit
 user-confirmed conversation associations, and bounded paged message retrieval.
+
+Additional modifications: versioned project notes with cited message and
+attachment coverage, content-based incremental review, and verified local
+attachment copies that preserve original files and content versions.

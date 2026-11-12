@@ -16,6 +16,8 @@ from .documents import read_document
 from .images import decode_dat, find_image_keys, normalized_image
 from .model import Model, ANSWER_SCHEMA
 from .source import WeChatSource
+from .knowledge import message_digest,record_attachment_receipt
+from .archive import copy_attachment,verified_backup
 
 
 def protobuf_fields(data):
@@ -151,19 +153,50 @@ class MediaReader:
         if not unique:raise FileNotFoundError('此语音的音频数据未保存在本机。')
         if len(unique)!=1:raise ValueError('语音索引有多个不同音频，未自动选择。')
         import pysilk
-        import numpy as np
         pcm=io.BytesIO();pysilk.decode(io.BytesIO(unique[0]),pcm,16000)
         wav=folder/'voice.wav'
         with wave.open(str(wav),'wb') as output:
             output.setnchannels(1);output.setsampwidth(2);output.setframerate(16000);output.writeframes(pcm.getvalue())
-        samples=np.frombuffer(pcm.getvalue(),dtype=np.int16).astype(np.float32)/32768.0
+        text,detail=self._transcribe_wav(wav)
+        return wav,text,detail
+
+    def _transcribe_wav(self,wav):
+        import numpy as np
+        with wave.open(str(wav),'rb') as stream:
+            samples=np.frombuffer(stream.readframes(stream.getnframes()),dtype=np.int16).astype(np.float32)/32768.0
         segments,info=speech_model(str(self.root/'models'),self.config.get('speech_model','small')).transcribe(samples,language='zh',vad_filter=True,beam_size=5)
         segments=list(segments)
         text='\n'.join(f'[{s.start:.1f}–{s.end:.1f}s] {s.text.strip()}' for s in segments)
         if not text:text='未识别到可转写的清晰语音；可播放原音频核对。'
-        return wav,text,dict(duration=info.duration,method='本地 Whisper 转写，可能存在同音字错误')
+        return text,dict(duration=info.duration,method='本地 Whisper 转写，可能存在同音字错误')
 
     def read(self,message_id,start=0,force=False,member=None):
+        if start<0:raise ValueError('start 不能为负数。')
+        initial=self.store.evidence([message_id])
+        result=self._read(message_id,start,force,member)
+        message=self.store.evidence([message_id])[0]
+        if message_digest(initial[0])!=message_digest(message):raise ValueError('读取期间消息发生变化，请重试。')
+        return record_attachment_receipt(self.store,message,result,start,member)
+
+    def backup(self,message_id):
+        rows=self.store.evidence([message_id])
+        if not rows:raise ValueError('找不到此消息。')
+        message=rows[0];loc=json.loads(message.get('locator') or '{}')
+        try:existing=verified_backup(self.store,message)
+        except FileNotFoundError:existing=None
+        if existing:return existing|dict(verified=True,note='复用已校验的本机备份。')
+        kind=loc.get('type',0)&0xffffffff
+        if kind==49:
+            if loc['account']!=self.source.account:raise ValueError('当前连接账户与消息不同。')
+            path=self._file_path(message,loc);quality='original_file'
+        elif kind in {3,34}:
+            cached=self.store.rows("SELECT * FROM media WHERE message_id=? AND status='ready'",(message_id,))
+            if not cached or not Path(cached[0]['path']).is_file():raise FileNotFoundError('请先读取这条图片/语音，得到解码后的本地文件再备份。')
+            path=Path(cached[0]['path']);quality=json.loads(cached[0]['detail']).get('quality','decoded_audio' if kind==34 else 'decoded_image')
+        else:raise ValueError('仅支持按消息定位的文件、图片和语音备份。')
+        return copy_attachment(self.store,message,path,quality)
+
+    def _read(self,message_id,start=0,force=False,member=None):
         rows=self.store.evidence([message_id])
         if not rows:raise ValueError('找不到此消息。')
         m=rows[0];loc=json.loads(m.get('locator') or '{}')
@@ -173,22 +206,31 @@ class MediaReader:
         detail=json.loads(cached['detail']) if cached else {}
         if cached and not force and not member and (cached['status']=='ready' or (cached['status']=='listed' and all(str(i) in detail.get('parts',{}) for i in range(start,min(start+5,detail.get('total_units',0)))))):
             return self.result(cached,start)
-        folder=self.root/'media'/str(message_id);folder.mkdir(parents=True,exist_ok=True)
+        folder=self.root/'media'/str(message_id)/message_digest(m)[:16];folder.mkdir(parents=True,exist_ok=True)
         kind=loc['type']&0xffffffff
         path='';text='';status='ready'
         try:
-            if loc['account']!=self.source.account:raise ValueError('当前连接账户与这条消息的账户不同。')
+            backup_note=None
+            try:backup=verified_backup(self.store,m)
+            except FileNotFoundError as exc:
+                backup=None;backup_note=str(exc)
+            if not backup and loc['account']!=self.source.account:raise ValueError('当前连接账户与这条消息的账户不同。')
             if kind==3:
-                original,quality=self._image_path(loc)
-                data=original.read_bytes()
-                keys=find_image_keys(self.root,Path(self.source.db_dir).parent) if data[:6]==bytes.fromhex('070856320807') else (None,None)
-                path=normalized_image(decode_dat(data,*keys),folder/'image.png')
+                if backup:
+                    original=path=Path(backup['path']);quality=backup['quality']
+                else:
+                    original,quality=self._image_path(loc)
+                    data=original.read_bytes()
+                    keys=find_image_keys(self.root,Path(self.source.db_dir).parent) if data[:6]==bytes.fromhex('070856320807') else (None,None)
+                    path=normalized_image(decode_dat(data,*keys),folder/'image.png')
                 text=self.vision(path,force)
                 detail=dict(quality=quality,original_path=str(original),method='图片识读')
             elif kind==34:
-                path,text,detail=self._voice(loc,folder)
+                if backup:
+                    path=Path(backup['path']);text,detail=self._transcribe_wav(path)
+                else:path,text,detail=self._voice(loc,folder)
             elif kind==49:
-                path=self._file_path(m,loc)
+                path=Path(backup['path']) if backup else self._file_path(m,loc)
                 if member:
                     if 'parts' not in detail:
                         listing=read_document(path,folder,lambda p:self.vision(p,force))
@@ -205,6 +247,8 @@ class MediaReader:
                     member_text='\n\n'.join(reading['parts'][k] for k in sorted(reading['parts'],key=int))
                     combined='\n\n'.join('[压缩包成员 '+name+']\n'+'\n'.join(v['parts'][k] for k in sorted(v['parts'],key=int)) for name,v in members.items())
                     with self.store.connect() as db:
+                        current=db.execute('SELECT * FROM messages WHERE id=?',(message_id,)).fetchone()
+                        if current is None or message_digest(dict(current))!=message_digest(m):raise ValueError('读取期间消息发生变化，请重试。')
                         db.execute('''INSERT INTO media VALUES (?,?,?,?,?,?,?) ON CONFLICT(message_id) DO UPDATE SET
                             text=excluded.text,detail=excluded.detail,updated=excluded.updated''',
                             (message_id,'listed',m['kind'],str(path),combined,json.dumps(detail,ensure_ascii=False),int(time.time())))
@@ -223,12 +267,15 @@ class MediaReader:
                     detail['archive_members_only']=True
                     status='listed' if status=='ready' else 'partial'
             else:raise ValueError('此消息不是图片、语音或文件附件。')
+            if backup_note:detail['backup_note']=backup_note
         except FileNotFoundError as exc:
             status='missing';detail={'error':str(exc)}
         except Exception as exc:
             status='error';detail={'error':str(exc)}
         record=dict(message_id=message_id,status=status,kind=m['kind'],path=str(path),text=text,detail=json.dumps(detail,ensure_ascii=False),updated=int(time.time()))
         with self.store.connect() as db:
+            current=db.execute('SELECT * FROM messages WHERE id=?',(message_id,)).fetchone()
+            if current is None or message_digest(dict(current))!=message_digest(m):raise ValueError('读取期间消息发生变化，请重试。')
             db.execute('INSERT OR REPLACE INTO media VALUES (:message_id,:status,:kind,:path,:text,:detail,:updated)',record)
         if text:self.store.set('context_dirty',True)
         return self.result(record,start)

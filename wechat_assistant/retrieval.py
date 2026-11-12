@@ -4,12 +4,15 @@ import time
 
 from .work import resolve_project
 from .discovery import scope, text_clause
+from .knowledge import review_source
 
 
 def public_message(store,message,include_attachment_text=True):
     result={k:message[k] for k in ('id','chat_id','chat_name','sender','ts','kind','text')}
     sender=json.loads(message.get('locator') or '{}').get('sender_username')
     result['is_self']=bool(sender and sender==store.get('identity',{}).get('username'))
+    result['review_source']=review_source(store,message)
+    if 'update_reason' in message:result['update_reason']=message['update_reason']
     media=store.rows('SELECT status,text,detail FROM media WHERE message_id=?',(message['id'],))
     if media:
         result['attachment']={'status':media[0]['status']}
@@ -34,6 +37,7 @@ def bounded_messages(store,rows,max_chars=12000):
         message=public_message(store,row,include_attachment_text=False)
         message['text']=message['text'][:2000]
         message['text_truncated']=len(row['text'])>len(message['text'])
+        if message['text_truncated']:message.pop('review_source',None)
         if len(json.dumps([*result,message],ensure_ascii=False))>budget:
             if result:break
             # Very long names can exceed the budget even without a body. Do not silently skip evidence.
