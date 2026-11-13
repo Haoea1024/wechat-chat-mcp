@@ -69,7 +69,20 @@ def register_workbuddy(path, spec):
     servers[name] = {**old, **spec, 'env': {**old.get('env', {}), **spec['env']},
                      'type': 'stdio', 'timeout': max(old.get('timeout', 0), 60000)}
     backup = write_config(path, original, json.dumps(doc, ensure_ascii=False, indent=2) + '\n')
-    return {'client': 'workbuddy', 'config': str(path), 'server': name, 'backup': backup}
+    return {'client': 'workbuddy', 'config': str(path), 'server': name, 'backup': backup,
+            **workbuddy_activation(path)}
+
+
+def workbuddy_activation(config_path):
+    # Presence alone never proves that this exact command/config was approved.
+    # WorkBuddy owns the approval store; this installer must never write it.
+    approvals = Path(config_path).parent / 'mcp-approvals.json'
+    return {
+        'native_activation': 'requires_client_verification',
+        'trust_record_file': 'present_not_verified' if approvals.is_file() else 'not_found',
+        'next_step': '在 WorkBuddy 的 MCP 服务器面板查看本服务；若提示首次信任，点击“信任”后连接，再在当前对话调用 project_status。列表未更新时先使用客户端刷新/配置保存入口。',
+        'approval_boundary': '信任确认由 WorkBuddy 管理；不能写入审批文件，也不能用 call-tool 绕过待确认、拒绝或禁用状态。重启不代替信任确认。',
+    }
 
 
 def register_dsh(profile_dir, spec):

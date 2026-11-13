@@ -8,7 +8,7 @@ from click.testing import CliRunner
 from ruamel.yaml import YAML
 
 from wechat_assistant.cli import main
-from wechat_assistant.setup_client import register_workbuddy, register_dsh, write_config, server_spec, check_connection
+from wechat_assistant.setup_client import register_workbuddy, register_dsh, write_config, server_spec, check_connection, workbuddy_activation
 
 
 class ClientSetupTests(unittest.TestCase):
@@ -41,6 +41,20 @@ class ClientSetupTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 register_workbuddy(path, self.spec)
             self.assertEqual(path.read_text('utf-8'), contents)
+
+    def test_workbuddy_registration_never_creates_or_claims_client_approval(self):
+        path = self.root / 'mcp.json'
+        approval = self.root / 'mcp-approvals.json'
+        result = register_workbuddy(path, self.spec)
+        self.assertFalse(approval.exists())
+        self.assertEqual(result['trust_record_file'], 'not_found')
+        self.assertEqual(result['native_activation'], 'requires_client_verification')
+        approval.write_bytes(b'{"unrelated-service":123}')
+        original = approval.read_bytes()
+        register_workbuddy(path, self.spec)
+        self.assertEqual(approval.read_bytes(), original)
+        self.assertEqual(workbuddy_activation(path)['trust_record_file'], 'present_not_verified')
+        self.assertEqual(workbuddy_activation(path)['native_activation'], 'requires_client_verification')
 
     def profile(self):
         (self.root / 'package.json').write_text(json.dumps({'dsh': {'profile': {'bundles': ['@deepseek-ai/dsh-web-app']}}}), 'utf-8')
