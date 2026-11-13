@@ -166,6 +166,45 @@ def mcp(root):
     run(root)
 
 
+@main.command('register-client')
+@click.argument('client', type=click.Choice(['workbuddy', 'dsh']))
+@click.option('--config-path', type=click.Path(), help='WorkBuddy 实际使用的 mcp.json。')
+@click.option('--profile-dir', type=click.Path(exists=True), help='DSH 当前 profile 目录，不自动猜测。')
+@click.pass_obj
+def register_client(root, client, config_path, profile_dir):
+    """检查 MCP 后注册到指定客户端，备份原配置并保留其他服务。"""
+    from .setup_client import server_spec, check_connection, register_workbuddy, register_dsh, media_readiness
+    try:
+        if client == 'dsh' and (not profile_dir or config_path):
+            raise ValueError('DSH 需要 --profile-dir 指向当前 profile，不能使用 --config-path。')
+        if client == 'workbuddy' and profile_dir:
+            raise ValueError('WorkBuddy 不使用 --profile-dir。')
+        spec = server_spec(root)
+        checks = check_connection(spec)
+        if client == 'workbuddy':
+            result = register_workbuddy(Path(config_path).resolve() if config_path else Path.home() / '.workbuddy' / 'mcp.json', spec)
+        else:
+            result = register_dsh(Path(profile_dir).resolve(), spec)
+        result.update(checks)
+        result['vision'] = media_readiness(root)
+        click.echo(json.dumps(result, ensure_ascii=False, indent=2))
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from None
+
+
+@main.command('doctor')
+@click.pass_obj
+def doctor(root):
+    """验证独立 stdio 握手和状态工具，不读取聊天正文。"""
+    from .setup_client import server_spec, check_connection, media_readiness
+    try:
+        result = check_connection(server_spec(root))
+        result['vision'] = media_readiness(root)
+        click.echo(json.dumps(result, ensure_ascii=False, indent=2))
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from None
+
+
 @main.group()
 def project():
     """管理保存在本机的项目配置。"""
