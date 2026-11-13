@@ -18,7 +18,7 @@
 - **DSH**：提供针对当前 profile 的自动注册入口。
 - **Codex**：已有本机使用验证，沿用现有接入流程。
 
-**WorkBuddy / DSH 已提供适配脚本，真实客户端完整流程仍待验收，不能视为已经全功能实测。** 新配置可能需要刷新工具或新开对话。只发链接可能被理解为阅读，建议带上“安装并接入当前客户端”。
+**WorkBuddy / DSH 已提供适配脚本，原生客户端完整流程仍待验收。** 当前对话未加载新工具时，智能体可通过内置 `call-tool` 命令继续查询，无需把新开对话作为开始使用的前提。只发链接可能被理解为阅读，建议带上“安装并接入当前客户端”。
 
 [安装指南](docs/INSTALL.md) · [完整使用说明](docs/USAGE.md) · [工具与格式参考](docs/REFERENCE.md)
 
@@ -66,6 +66,7 @@
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 powershell -NoProfile -ExecutionPolicy Bypass -File tests\test_install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests\test_native_command.ps1
 ```
 
 测试使用虚构数据。欢迎用 Issues 反馈操作系统、微信版本、客户端版本、复现步骤与脱敏错误；不要附聊天数据库或密钥。当前由维护者独立写入，不接受外部 PR，公开源码可下载和 Fork。实现约定见 [AGENTS.md](AGENTS.md)。

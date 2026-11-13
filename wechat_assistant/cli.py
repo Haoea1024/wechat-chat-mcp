@@ -205,6 +205,27 @@ def doctor(root):
         raise click.ClickException(str(exc)) from None
 
 
+@main.command('call-tool')
+@click.argument('tool', required=False)
+@click.option('--arguments-file', type=click.Path(exists=True, dir_okay=False), help='UTF-8 JSON 参数文件；省略时传入空对象。')
+@click.pass_context
+def call_tool(ctx, tool, arguments_file):
+    """当前客户端未加载 MCP 时调用同一套工具；不传工具名则列出定义与使用约定。"""
+    from .tool_bridge import call
+    try:
+        if arguments_file and not tool:
+            raise ValueError('传参数文件时需要指定工具名。')
+        arguments = json.loads(Path(arguments_file).read_text('utf-8-sig')) if arguments_file else {}
+        if not isinstance(arguments, dict):
+            raise ValueError('工具参数必须是 JSON 对象。')
+        result = call(ctx.obj, tool, arguments)
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from None
+    click.echo(json.dumps(result, ensure_ascii=False))
+    if result.get('isError'):
+        ctx.exit(1)
+
+
 @main.group()
 def project():
     """管理保存在本机的项目配置。"""
