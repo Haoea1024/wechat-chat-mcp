@@ -27,8 +27,8 @@
 
 | 内容 | 实现方式 | 需要注意 |
 | --- | --- | --- |
-| 微信图片 | 按消息索引定位本地图片，解码后交给配置的模型识读文字、表格和图意 | 只有缩略图时会注明；识读可能存在错误 |
-| 微信语音 | 从对应音频记录提取 SILK，在本机解码并用 Whisper small 转写，保留时间点 | 首次下载模型；同音字、专有名词需要结合上下文核对 |
+| 微信图片 | 按消息索引定位本地图片，解码后默认通过 MCP 图片交给当前客户端识读 | 只有缩略图时会注明；识读可能存在错误 |
+| 微信语音 | 从对应音频记录提取 SILK，在本机解码并用 Whisper small 转写，保留时间点 | 安装时下载并测试模型，查询时仅用本地缓存；同音字、专有名词需要结合上下文核对 |
 | PDF | 分页提取文字；有图片或扫描内容的页面渲染后识读 | 长文档需继续分页；复杂矢量图表不保证完整还原 |
 | Word / PowerPoint | 读取 DOCX 段落、表格与插图；读取 PPTX 幻灯片文字、表格、备注与插图 | 复杂绘图、嵌入对象和版式可能未覆盖 |
 | Excel / CSV | 分段读取 XLSX、XLS、CSV 表格 | XLSX 公式按原文保留；不替代完整的表格计算或图表渲染 |
@@ -36,7 +36,7 @@
 | 文本与代码文件 | 读取 TXT、Markdown、JSON、XML、常见源码等 | 只读取，不执行 |
 | ZIP | 先列出成员，再指定成员名读取正文 | 列出文件名不等于读过成员内容 |
 
-附件通过消息索引或内容指纹匹配，避免把同名旧文件当成当前版本。读取结果缓存在本地；文档每次最多返回五页或五段，可继续分页。
+附件通过消息索引或内容指纹匹配，避免把同名旧文件当成当前版本。读取结果缓存在本地；默认每次返回一页/段、最多两张附图；先用 `visual_offset` 补齐当前页图片，再用 `start` 翻页。显式独立模型模式沿用每次最多五页/段。
 
 本机没有的内容无法凭空读取。未下载、已清理、读取失败、只读了一部分，会分别体现在工具结果中。视频内容解析暂未实现。
 
@@ -49,14 +49,7 @@
 - Python 3.10+、Git。开发机器使用 Python 3.14。
 - 已登录的 Windows 桌面版微信，且本机已经同步了需要查询的聊天。
 - 支持本地 **stdio MCP** 的智能体客户端。Codex 为已实测入口。
-- 图片识读需要配置模型；默认复用本机 Codex CLI 登录。语音转写使用本机 CPU，不要求 GPU。
-
-Codex 的安装与登录参见 [官方 CLI 文档](https://developers.openai.com/codex/cli)。如果已安装，可以检查：
-
-```powershell
-codex --version
-codex login status
-```
+- 默认图片交当前客户端识读，无需额外 Codex CLI 或独立 API。语音在本机 CPU 转写，不要求 GPU，安装时用 `prepare-media` 准备模型。
 
 ### 2. 下载并安装
 
@@ -78,6 +71,7 @@ python -m venv .venv
 保持电脑版微信登录，运行：
 
 ```powershell
+.\.venv\Scripts\wechat-assistant.exe prepare-media
 .\.venv\Scripts\wechat-assistant.exe connect
 .\.venv\Scripts\wechat-assistant.exe sync
 .\.venv\Scripts\wechat-assistant.exe status
@@ -99,30 +93,7 @@ python -m venv .venv
 
 ### Codex
 
-在仓库目录运行，命令会取得本机的实际可执行文件路径：
-
-```powershell
-$wechatMcpExe = (Resolve-Path '.\.venv\Scripts\wechat-assistant.exe').Path
-codex mcp add wechat-chat -- "$wechatMcpExe" mcp
-codex mcp list
-```
-
-在 Codex 用户配置 `~/.codex/config.toml` 中，找到刚创建的服务段，加入附件工具的超时时间：
-
-```toml
-[mcp_servers.wechat-chat]
-command = 'D:\Projects\wechat-chat-mcp\.venv\Scripts\wechat-assistant.exe'
-args = ["mcp"]
-tool_timeout_sec = 900
-```
-
-`command` 应保留 CLI 注册出的实际路径，不要直接换成上述示例路径。已有相同服务段时编辑原段，不要重复添加。MCP 配置方式依据 [Codex 官方 MCP 文档](https://developers.openai.com/codex/mcp)。
-
-重新加载 MCP 配置或重启客户端后，新建对话验证：
-
-> 使用 wechat-chat 的 project_status 查看同步时间，再用 discover_chats 查“订单同步”的候选群聊。通过强相关群的成员查找候选私聊，先简述范围，再分批读取相关内容。
-
-`codex mcp list` 确认的是配置存在；智能体实际成功调用工具才说明连接可用。
+由当前 Codex 运行 `install.ps1 -Client codex`，自动备份并合并 `config.toml`，保留已有服务与启用状态；无需额外安装 CLI。具体路径、超时、升级和验证步骤见[安装指南](INSTALL.md)。配置成功只表示写入完成，仍需当前客户端通过原生工具调用并逐项验证媒体。
 
 ### 其他智能体客户端
 
@@ -311,7 +282,8 @@ MCP 读取已经同步的记录，不会因为一次查询就自动把手机端�
 | 助理配置与图片解码参数 | 同一目录下的 `config.json`、`image-keys.json` |
 | 微信连接配置与数据库密钥 | `%USERPROFILE%\.wechat-cli\` |
 | 智能体收到的检索结果 | 进入所使用智能体的模型上下文 |
-| 图片识读、网页问答、后台分析 | 相关材料发送给本项目配置的模型入口；默认使用本机 Codex CLI 登录 |
+| 图片识读 | 默认进入当前客户端模型上下文；仅显式独立模型模式使用额外模型入口 |
+| 网页更新 / 问答 | 默认提示返回当前客户端执行；独立后台模式需自行启用 |
 | 语音解码与转写 | 在本机执行；转写文本可能作为后续分析上下文 |
 
 本地存储不等于所有推理都在本机执行。项目不会把微信数据库密钥发送给模型。请不要将聊天数据库、缓存、密钥或真实聊天截图提交到公开仓库。

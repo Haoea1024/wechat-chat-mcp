@@ -19,7 +19,10 @@ def read_document(path, folder, vision, start=0, count=5):
     folder.mkdir(parents=True,exist_ok=True)
     parts=[]
     unit='段'
-    if suffix=='.pdf':
+    if suffix in {'.png','.jpg','.jpeg','.webp','.bmp','.gif','.tif','.tiff'}:
+        total=1;unit='图片（动画/多帧文件仅首帧）'
+        if start==0:parts=[dict(index=0,text=_picture(path.read_bytes(),folder,vision))]
+    elif suffix=='.pdf':
         from pypdf import PdfReader
         import pypdfium2 as pdfium
         pdf=PdfReader(path);total=len(pdf.pages);unit='页'

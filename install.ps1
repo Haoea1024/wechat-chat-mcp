@@ -1,11 +1,13 @@
 param(
-    [ValidateSet('workbuddy', 'dsh')][string]$Client,
+    [ValidateSet('workbuddy', 'codex', 'dsh')][string]$Client,
     [string]$Python,
     [string]$DbDir,
     [string]$DataDir,
     [string]$ConfigPath,
     [string]$ProfileDir,
-    [switch]$SkipSync
+    [switch]$SkipSync,
+    [switch]$SkipMedia,
+    [switch]$KeepModelProvider
 )
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
@@ -14,7 +16,7 @@ if ([System.Environment]::OSVersion.Platform -ne 'Win32NT') { throw 'This instal
 if ($Client -eq 'dsh' -and -not $ProfileDir) {
     throw 'DSH requires -ProfileDir pointing to the active, initialized profile.'
 }
-if ($Client -eq 'workbuddy' -and $ProfileDir) { throw 'WorkBuddy does not use -ProfileDir.' }
+if ($Client -in @('workbuddy', 'codex') -and $ProfileDir) { throw 'WorkBuddy/Codex does not use -ProfileDir.' }
 if ($Client -eq 'dsh' -and $ConfigPath) { throw 'DSH does not use -ConfigPath.' }
 if (-not (Test-Path -LiteralPath '.venv\Scripts\python.exe')) {
     if ($Python) { $pythonCommand = $Python; $pythonPrefix = @() }
@@ -30,6 +32,12 @@ if (-not $Client) {
 }
 $commonArgs = @()
 if ($DataDir) { $commonArgs += @('--data-dir', $DataDir) }
+if ($Client -in @('workbuddy', 'codex') -and -not $KeepModelProvider) {
+    Invoke-WeChatNative '.venv\Scripts\wechat-assistant.exe' ($commonArgs + @('use-client')) 'Could not switch to current-client mode.'
+}
+if (-not $SkipMedia) {
+    Invoke-WeChatNative '.venv\Scripts\wechat-assistant.exe' ($commonArgs + @('prepare-media')) 'Speech setup incomplete. Resolve the download/runtime error and rerun. Use -SkipMedia only for an explicitly text-only installation.'
+} else { Write-Host 'Media preparation skipped: speech readiness is NOT verified.' }
 if (-not $SkipSync) {
     $connectArgs = @('connect')
     if ($DbDir) { $connectArgs += @('--db-dir', $DbDir) }

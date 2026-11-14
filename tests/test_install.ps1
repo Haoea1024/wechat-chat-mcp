@@ -16,7 +16,7 @@ function global:.venv\Scripts\wechat-assistant.exe {
 function Test-Path { param($LiteralPath) return $true }
 function Assert-True($condition, $message) { if (-not $condition) { throw $message } }
 try {
-    foreach ($stage in @('pip', 'connect', 'sync')) {
+    foreach ($stage in @('pip', 'use-client', 'prepare-media', 'connect', 'sync')) {
         $global:wechatTestCalls = @()
         $global:wechatTestFailStage = $stage
         $failed = $false
@@ -27,13 +27,19 @@ try {
     $global:wechatTestFailStage = ''
     $global:wechatTestCalls = @()
     & $installer -Client workbuddy -DataDir 'C:\test data' -DbDir 'C:\test account' -ConfigPath 'C:\test client\mcp.json'
-    Assert-True ($global:wechatTestCalls.Count -eq 4) 'Expected pip, connect, sync, register'
-    Assert-True (($global:wechatTestCalls[1] -join '|') -eq 'connect|--db-dir|C:\test account') 'Account path forwarding failed'
-    Assert-True (($global:wechatTestCalls[3] -join '|') -eq '--data-dir|C:\test data|register-client|workbuddy|--config-path|C:\test client\mcp.json') 'Registration arguments changed'
+    Assert-True ($global:wechatTestCalls.Count -eq 6) 'Expected pip, use-client, prepare-media, connect, sync, register'
+    Assert-True (($global:wechatTestCalls[1] -join '|') -eq '--data-dir|C:\test data|use-client') 'Migration data directory forwarding failed'
+    Assert-True (($global:wechatTestCalls[2] -join '|') -eq '--data-dir|C:\test data|prepare-media') 'Model directory forwarding failed'
+    Assert-True (($global:wechatTestCalls[3] -join '|') -eq 'connect|--db-dir|C:\test account') 'Account path forwarding failed'
+    Assert-True (($global:wechatTestCalls[5] -join '|') -eq '--data-dir|C:\test data|register-client|workbuddy|--config-path|C:\test client\mcp.json') 'Registration arguments changed'
     $global:wechatTestCalls = @()
-    & $installer -Client dsh -ProfileDir 'C:\test profile' -SkipSync
+    & $installer -Client dsh -ProfileDir 'C:\test profile' -SkipSync -SkipMedia
     Assert-True ($global:wechatTestCalls.Count -eq 2) 'SkipSync unexpectedly touched WeChat'
     Assert-True (($global:wechatTestCalls[1] -join '|') -eq 'register-client|dsh|--profile-dir|C:\test profile') 'Profile path forwarding failed'
+    $global:wechatTestCalls = @()
+    & $installer -Client codex -SkipSync -SkipMedia -KeepModelProvider -ConfigPath 'C:\test client\config.toml'
+    Assert-True ($global:wechatTestCalls.Count -eq 2) 'KeepModelProvider unexpectedly changed model settings'
+    Assert-True (($global:wechatTestCalls[1] -join '|') -eq 'register-client|codex|--config-path|C:\test client\config.toml') 'Codex registration arguments changed'
     Write-Output 'PASS: installer order, failure stops, paths, and registration-only mode'
 } finally {
     Remove-Variable wechatTestCalls,wechatTestFailStage -Scope Global -ErrorAction SilentlyContinue

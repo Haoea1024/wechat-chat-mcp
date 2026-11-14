@@ -81,6 +81,13 @@ def receipt_current(store,token):
     rows=store.rows('SELECT body FROM attachment_receipts WHERE token=?',(token,))
     if not rows:return None
     receipt=json.loads(rows[0]['body']);messages=store.evidence([receipt['message_id']])
+    if receipt['coverage'].get('kind') == 'client_content':
+        if not messages or message_digest(messages[0])!=receipt['message_digest']:return None
+        from .client_media import file_digest
+        try:
+            if any(file_digest(path)!=value for path,value in receipt['files'].items()):return None
+        except OSError:return None
+        return receipt
     media=store.rows('SELECT * FROM media WHERE message_id=?',(receipt['message_id'],))
     if not messages or not media or media[0]['status'] not in {'ready','partial','listed'}:return None
     if message_digest(messages[0])!=receipt['message_digest']:return None

@@ -1,6 +1,7 @@
 import queue
 import threading
 import time
+import json
 
 from .analysis import analyze, ask
 from .config import load, save
@@ -32,8 +33,9 @@ class Service:
                      "history_days", "poll_seconds", "analysis_seconds", "batch_size", "schedule", "notifications", "background_analysis"}
         _, saved = load(self.root)
         updated = saved | {k: v for k, v in values.items() if k in permitted}
-        if updated["provider"] not in {"codex", "api"}:
-            raise ValueError("模型方式必须为 codex 或 api。")
+        if updated["provider"] not in {"client", "codex", "api"}:
+            raise ValueError("模型方式必须为 client、codex 或 api。")
+        if updated['provider']=='client':updated['background_analysis']=False
         for key, low, high in [("history_days", 1, 3650), ("poll_seconds", 15, 3600),
                                ("analysis_seconds", 30, 86400), ("batch_size", 10, 500)]:
             if not isinstance(updated[key], int) or not low <= updated[key] <= high:
@@ -49,12 +51,25 @@ class Service:
     def submit(self, action, payload=None):
         if action not in {"sync", "analyze", "ask", "backfill", "notify_test", "read_media"}:
             raise ValueError("未知任务")
+        if not self.demo:_, self.config = load(self.root)
+        if action in {'analyze','ask'} and self.config['provider']=='client':
+            return self.client_handoff(payload or {})
         if self.jobs.qsize() >= 3:
             raise ValueError("已有任务等待处理，请稍后再试。")
         self.jobs.put((action, payload or {}))
         return {"queued": True}
 
+    def client_handoff(self,payload):
+        projects=self.store.projects()
+        selected=[p['name'] for p in projects if p['id']==payload.get('project_id')]
+        request=payload.get('question') or ('请更新项目“'+selected[0]+'”的进展。' if selected else '请更新我已配置的项目资料。')
+        return {'handoff': True, 'prompt': request+' 先查看状态和已有项目资料，按需读取新增聊天及附件，保留出处和未读范围，用 save_project_brief 保存更新。不要全量分析所有聊天。',
+                'note': '复制到当前 WorkBuddy / Codex 对话执行。网页不会启动其他模型；保存后此页自动显示资料。'}
+
     def execute(self, action, payload):
+        if not self.demo:_, self.config = load(self.root)
+        if action in {'analyze','ask'} and self.config['provider']=='client':
+            return self.client_handoff(payload)
         if action == "sync":
             if self.demo:
                 return {"note": "演示模式不访问真实微信。"}
@@ -89,7 +104,7 @@ class Service:
             try:
                 result = self.execute(action, payload or {})
                 self.store.set("job", {"action": action, "ok": True, "at": int(time.time()), "result": result})
-                if action in {'ask','read_media'}:
+                if action in {'ask','read_media'} and not result.get('handoff'):
                     self.store.set(action+'_result',{'at':time.time_ns(),'result':result})
                 return result
             except Exception as exc:
@@ -108,6 +123,7 @@ class Service:
     def run(self):
         next_sync, next_analysis = 0, 0
         while not self.stop.is_set():
+            if not self.demo:_, self.config = load(self.root)
             try:
                 action, payload = self.jobs.get(timeout=1)
             except queue.Empty:
@@ -115,7 +131,7 @@ class Service:
                 action, payload = None, {}
                 if not self.demo and now >= next_sync:
                     action, next_sync = "sync", now + self.config["poll_seconds"]
-                elif self.config.get('background_analysis',False) and self.store.projects() and now >= next_analysis and (self.store.status()["pending"] or self.store.get("context_dirty") or self.store.get('overview_refresh')
+                elif self.config['provider']!='client' and self.config.get('background_analysis',False) and self.store.projects() and now >= next_analysis and (self.store.status()["pending"] or self.store.get("context_dirty") or self.store.get('overview_refresh')
                                                or any(p['paths'] for p in self.store.projects() if p['status'] == 'tracked')):
                     action, next_analysis = "analyze", now + self.config["analysis_seconds"]
             if action:
@@ -136,7 +152,12 @@ class Service:
         self.thread.start()
 
     def snapshot(self):
-        return {"status": self.store.status(), "projects": self.store.projects(),
+        if not self.demo:_, self.config = load(self.root)
+        projects=self.store.projects()
+        for project in projects:
+            rows=self.store.rows('SELECT body,version,created FROM project_briefs WHERE project_id=? ORDER BY version DESC LIMIT 1',(project['id'],))
+            project['brief']=dict(json.loads(rows[0]['body']),version=rows[0]['version'],created=rows[0]['created']) if rows else None
+        return {"status": self.store.status(), "projects": projects,
                 "chats": self.store.rows("SELECT * FROM chats ORDER BY name"),
                 "notifications": self.store.rows("SELECT * FROM notifications ORDER BY id DESC LIMIT 40"),
                 "job": self.store.get("job"), "answer":self.store.get('ask_result'),

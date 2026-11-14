@@ -2,9 +2,9 @@
 
 ## 让当前智能体安装
 
-把仓库地址发给 WorkBuddy、DeepSeek Harness（DSH）或 Codex，并说“安装并接入当前客户端”。智能体应先读 [安装指南](INSTALL.md)，完成本机依赖、微信连接、同步、客户端注册与实际调用验证。无需用户手填 MCP JSON/YAML。
+把仓库地址发给 WorkBuddy 或 Codex，并说“安装并接入当前客户端”。智能体应先读 [安装指南](INSTALL.md)，完成本机依赖、微信连接、同步、客户端注册与实际调用验证。无需用户手填 MCP JSON/YAML。
 
-WorkBuddy 5.9.3 已由使用者验证原生工具加载和 `project_status` 调用，具体项目检索与媒体读取仍待验证；DSH 真实客户端仍待验收。WorkBuddy 的确认入口是「专家·技能·连接器 → 连接器 → 自定义连接器」。图片识读不会自动继承客户端模型，详见安装指南。
+WorkBuddy 5.9.3 已由使用者验证原生工具加载和 `project_status` 调用，具体项目检索与媒体读取仍待验证；DSH 真实客户端仍待验收。WorkBuddy 的确认入口是「专家·技能·连接器 → 连接器 → 自定义连接器」。默认图片直接交当前客户端识读，无需额外 Codex CLI；仍需验证客户端实际看到了附图，详见安装指南。
 
 手动操作和已有 Codex 配置仍可参考本页。功能、附件格式与工具列表见 [技术参考](REFERENCE.md)。
 
@@ -18,7 +18,7 @@ WorkBuddy 5.9.3 已由使用者验证原生工具加载和 `project_status` 调�
 
 **只使用插件时，先同步，再让客户端启动 MCP 就够了。** 不必先把全部历史消息做成摘要，也不必一直开着网页。
 
-首次默认同步近 30 天到本地 SQLite，同时更新会话目录和群成员快照。这些操作不调用模型；工具返回给智能体的内容才进入模型上下文。旧安装更新代码后运行一次 `sync`，并重新加载 MCP 工具列表；旧安装的后台分析设置会保留。
+首次默认同步近 30 天到本地 SQLite，同时更新会话目录和群成员快照。这些操作不调用模型；工具返回给智能体的内容才进入模型上下文。旧安装更新代码后运行一次 `sync`，并重新加载 MCP 工具列表；仅更新代码会保留旧设置；重新运行 WorkBuddy/Codex 安装脚本默认备份并切换当前客户端模式，可用 `-KeepModelProvider` 保留原模型入口。
 
 ## 1. 安装并准备聊天数据
 
@@ -34,6 +34,7 @@ python -m venv .venv
 保持微信登录，连接并同步：
 
 ```powershell
+.\.venv\Scripts\wechat-assistant.exe prepare-media
 .\.venv\Scripts\wechat-assistant.exe connect
 .\.venv\Scripts\wechat-assistant.exe sync
 .\.venv\Scripts\wechat-assistant.exe status
@@ -54,33 +55,13 @@ python -m venv .venv
 
 ### 注册服务
 
-确认本机可用 Codex CLI；安装与登录方法见 [官方 CLI 文档](https://developers.openai.com/codex/cli)。
+推荐由当前 Codex 在仓库目录运行：
 
 ```powershell
-codex --version
-codex login status
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client codex
 ```
 
-未登录时运行 `codex login`，使用自己的账户登录。然后在本项目目录执行：
-
-```powershell
-$wechatMcpExe = (Resolve-Path '.\.venv\Scripts\wechat-assistant.exe').Path
-codex mcp add wechat-chat -- "$wechatMcpExe" mcp
-codex mcp list
-```
-
-也可以直接编辑 Codex 用户配置 `~/.codex/config.toml`。Windows 默认路径为 `%USERPROFILE%\.codex\config.toml`，使用自定义 Codex 主目录时以客户端实际配置位置为准：
-
-```toml
-[mcp_servers.wechat-chat]
-command = 'D:\Projects\wechat-chat-mcp\.venv\Scripts\wechat-assistant.exe'
-args = ["mcp"]
-tool_timeout_sec = 900
-```
-
-将 `command` 替换为自己的绝对路径。CLI 注册和手动配置是两种方式，不要创建重复服务段。图片识读、语音首次加载和长文档处理可能超过默认工具超时，因此示例给出 900 秒。
-
-配置参数参见 [Codex 官方 MCP 文档](https://developers.openai.com/codex/mcp)。已有旧名称 `wechat-project-assistant` 的服务也能使用，无需为改显示名称再注册一份。
+已有连接和同步可加 `-SkipSync`。脚本自动合并并备份实际 `config.toml`，无需另装 CLI。仅补注册可用 `wechat-assistant register-client codex`，但它不下载语音模型或迁移旧模型设置；完整升级步骤见[安装指南](INSTALL.md)。
 
 ### 验证真正连通
 
@@ -253,10 +234,10 @@ Codex 已有本机使用验证；WorkBuddy 5.9.3 已验证原生工具可见及�
 
 `read_attachment(message_id)` 使用消息 ID，不要求用户自己去找文件路径。
 
-- 图片：返回识读文字与说明；本地缓存路径也包含在结果中。
+- 图片：默认随工具结果返回图片及原图路径，由当前客户端识读。未实际看到图片时不得声称已读。
 - 语音：返回带时间点的本地转写结果。
-- 文档：一次最多五页/段，按 `detail.next_start` 继续。
-- ZIP：先列成员名，再传入 `member` 读取指定成员；成员结果的分页指针在顶层 `next_start`。
+- 文档：默认一次一页/段，最多两张附图；同页图片按 `detail.next_visual_offset` 继续（保留 `start/member`），再按 `detail.next_start` 翻页。
+- ZIP：先列成员名，再传入 `member` 读取指定成员；默认分页指针在 `detail.next_start`，旧独立模型模式的成员结果在顶层 `next_start`。
 - `force=true`：需要重新提取/识读时使用，不必每次都打开。
 
 常见状态：
@@ -264,6 +245,7 @@ Codex 已有本机使用验证；WorkBuddy 5.9.3 已验证原生工具可见及�
 | 状态 | 含义 |
 | --- | --- |
 | `not_read` | 尚未读取附件 |
+| `prepared` | 附图已准备；当前客户端实际看到并识读后才能引用图中内容 |
 | `ready` | 对应读取任务已完成，不代表内容没有识别误差 |
 | `partial` | 文档只读了一部分，继续分页 |
 | `listed` | 已列出压缩包信息，不代表所有成员正文都已读 |
@@ -282,30 +264,15 @@ Codex 已有本机使用验证；WorkBuddy 5.9.3 已验证原生工具可见及�
 
 ## 5. 附件读取使用哪个模型
 
-**当前对话的模型**负责理解问题、选择工具和综合证据。**本项目配置的模型入口**负责图片识读、部分文档插图识读，以及可选的网页问答和后台分析。这两者不一定是同一个模型。
+默认 `provider=client`，由**当前 WorkBuddy / Codex 对话**理解文本、图片和项目进展。服务返回标准 MCP 图片内容，无需额外安装 Codex CLI、复制登录凭据或配置另一套 API。客户端未显示工具图片时，可用其原生读图工具打开返回的 `original_path`；两种途径都无法读取时明确报告缺口。
 
-### 默认：本机 Codex CLI
+正文与图片按实际返回范围记录出处。图片传输预览最长边不超过 2560 像素，每张不超过 2 MiB；原图仍保留，结果注明尺寸和缩放，细字不清时必须补读原图。回执只证明所列内容已提供，不能代替实际识读；不能把局部读图写成整份材料都已看完。
 
-本项目默认调用已登录的 `codex exec`，不复制登录凭据。检查：
+语音使用本地 Whisper small CPU 转写。安装脚本会先下载并运行检查；读取语音时不联网下载。缺少或损坏模型时，运行同一资料目录的 `prepare-media` 修复后重试。
 
-```powershell
-codex login status
-codex exec --help
-```
+### 可选：独立 Codex CLI
 
-所用 CLI 需要支持项目使用的 `--ignore-user-config`、`--ephemeral`、`--output-schema`、`--image` 等参数。当前配置不会自动继承客户端的全部自定义模型/provider 设置。
-
-如果终端可以运行 `codex`，桌面启动的 MCP 却找不到命令，在助理数据目录的 `config.json` 中设置实际可执行文件路径。下例使用占位路径：
-
-```json
-{
-  "provider": "codex",
-  "codex_command": "C:/Tools/Codex/codex.exe",
-  "model": ""
-}
-```
-
-已有配置时合并这几个字段，保留其他设置。`model` 留空使用该 CLI 的默认模型；修改后重启 MCP 进程，启用了后台的也需要重启后台。
+仅需要独立网页问答或无人值守分析时，显式选择 `provider=codex` 并配置已登录的 CLI 路径。此模式可能需要额外安装和登录，不是 WorkBuddy/Codex 默认使用的前提；安装时加 `-KeepModelProvider` 才保留它。已有项目和资料不会因模式切换删除。
 
 ### 可选：兼容 API
 
@@ -375,7 +342,7 @@ codex exec --help
 .\.venv\Scripts\wechat-assistant.exe serve
 ```
 
-打开 [本地页面](http://127.0.0.1:8766)。新安装默认只持续采集；需要进度摘要和提醒时，先配置项目，再在设置中启用“自动分析已配置项目”，这会调用配置的模型并消耗相应额度。
+打开 [本地页面](http://127.0.0.1:8766)。新安装默认只持续采集，并展示客户端保存的项目资料。点击“在对话中更新”，复制提示到当前客户端查询并保存。需要无人值守分析时才在设置中明确选择独立 Codex CLI / API 并启用后台分析，这会消耗相应额度。
 
 如果需要更早记录，可在本地页面“设置与运行”补导入，再查询。扩大工具的 `days` 参数本身不会补导历史数据。
 
@@ -397,9 +364,9 @@ codex exec --help
 
 消息入库不等于附件已读。调用 `read_attachment`，查看状态和分页指针。语音依赖本地音频数据；图片和文件可能需要先在微信下载。
 
-### 接了别的智能体，为什么读图片还需要 Codex
+### 升级后仍提示找不到 Codex CLI
 
-外部智能体与本项目的附件识读模型是两个入口。默认附件识读通过本机 Codex CLI，接入其他客户端并不会自动替换它。需要其他模型时，配置本项目的兼容 API 入口。
+旧配置可能仍为 `provider=codex`。更新后运行 `use-client` 或完整安装脚本，会备份旧配置并切换客户端模式；重新连接 MCP 以加载新代码。网页运行诊断仍保留历史后台错误，不能把历史失败当作当前客户端模式依赖 Codex。
 
 ### 关闭后台后 MCP 还能用吗
 

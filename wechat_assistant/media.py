@@ -8,7 +8,6 @@ import time
 import wave
 import zipfile
 from contextlib import closing
-from functools import lru_cache
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -18,6 +17,7 @@ from .model import Model, ANSWER_SCHEMA
 from .source import WeChatSource
 from .knowledge import message_digest,record_attachment_receipt
 from .archive import copy_attachment,verified_backup
+from .speech import speech_model
 
 
 def protobuf_fields(data):
@@ -47,12 +47,6 @@ def resource_identifier(blob):
     if not nested:return ''
     values=protobuf_fields(nested[0]).get(1,[])
     return values[0].decode('utf-8') if values else ''
-
-
-@lru_cache(maxsize=1)
-def speech_model(folder, name):
-    from faster_whisper import WhisperModel
-    return WhisperModel(name,device='cpu',compute_type='int8',cpu_threads=4,download_root=folder)
 
 
 class MediaReader:
@@ -170,9 +164,14 @@ class MediaReader:
         if not text:text='未识别到可转写的清晰语音；可播放原音频核对。'
         return text,dict(duration=info.duration,method='本地 Whisper 转写，可能存在同音字错误')
 
-    def read(self,message_id,start=0,force=False,member=None):
+    def read(self,message_id,start=0,force=False,member=None,visual_offset=0):
         if start<0:raise ValueError('start 不能为负数。')
+        if visual_offset<0:raise ValueError('visual_offset 不能为负数。')
         initial=self.store.evidence([message_id])
+        if not initial:raise ValueError('找不到此消息。')
+        if self.config.get('provider') == 'client' and (json.loads(initial[0].get('locator') or '{}').get('type',0)&0xffffffff) in {3,49}:
+            from .client_media import read_for_client
+            return read_for_client(self,initial[0],start,member,visual_offset)
         result=self._read(message_id,start,force,member)
         message=self.store.evidence([message_id])[0]
         if message_digest(initial[0])!=message_digest(message):raise ValueError('读取期间消息发生变化，请重试。')
@@ -190,7 +189,7 @@ class MediaReader:
             if loc['account']!=self.source.account:raise ValueError('当前连接账户与消息不同。')
             path=self._file_path(message,loc);quality='original_file'
         elif kind in {3,34}:
-            cached=self.store.rows("SELECT * FROM media WHERE message_id=? AND status='ready'",(message_id,))
+            cached=self.store.rows("SELECT * FROM media WHERE message_id=? AND status IN ('ready','prepared')",(message_id,))
             if not cached or not Path(cached[0]['path']).is_file():raise FileNotFoundError('请先读取这条图片/语音，得到解码后的本地文件再备份。')
             path=Path(cached[0]['path']);quality=json.loads(cached[0]['detail']).get('quality','decoded_audio' if kind==34 else 'decoded_image')
         else:raise ValueError('仅支持按消息定位的文件、图片和语音备份。')

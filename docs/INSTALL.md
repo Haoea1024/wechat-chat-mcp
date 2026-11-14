@@ -1,6 +1,6 @@
 # 让当前智能体完成安装
 
-面向能在用户 Windows 电脑执行命令的 WorkBuddy、DeepSeek Harness（DSH）及 Codex。用户发来仓库地址并要求安装后，由智能体完成以下步骤，不要求用户复制 JSON 或寻找配置文件。仅发链接可能被理解为阅读；推荐说“安装这个仓库并接入当前客户端”。
+本轮重点适配能在用户 Windows 电脑执行命令的 WorkBuddy 和 Codex；DSH 保留旧入口，暂不扩展或宣称验收。用户发来仓库地址并要求安装后，由智能体完成以下步骤，不要求用户复制 JSON 或寻找配置文件。仅发链接可能被理解为阅读；推荐说“安装这个仓库并接入当前客户端”。
 
 ## 1. 确认运行位置
 
@@ -41,12 +41,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client dsh -P
 
 ### Codex
 
-继续使用 [现有 Codex 接入步骤](USAGE.md#2-接入-codex)，使用实际绝对可执行路径并保留已有服务。`install.ps1` 不带 Client 时只安装依赖，便于沿用已有流程。
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client codex
+```
+
+自动合并 `CODEX_HOME/config.toml`（未设时为 `~/.codex/config.toml`），保留其他服务、注释和启用状态，备份原配置。自定义实际配置位置使用 `-ConfigPath`。设置启动超时 60 秒、工具超时 900 秒；不会为了注册或读图额外安装 Codex CLI。配置字段依据 [Codex 官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。已有同名服务复用，不另建一份。
+
+`install.ps1` 不带 Client 时只安装依赖；注册入口本身不准备语音模型。
 
 ### 通用行为与恢复
 
-指定 Client 后，脚本依次：创建/复用 `.venv` → 安装 `.[mcp,media]` → `connect` → `sync` → 独立 stdio 握手及 `project_status` → 备份并合并客户端配置。
+指定 Client 后，脚本依次：创建/复用 `.venv` → 安装 `.[mcp,media]` → WorkBuddy/Codex 切换当前客户端模式 → 准备并实测语音模型 → `connect` → `sync` → 独立 stdio 握手及 `project_status` → 备份并合并客户端配置。
 
+- WorkBuddy/Codex 安装默认把 `provider` 设为 `client` 并关闭独立后台分析。旧 `config.json` 先完整备份，项目、反馈、账户选择和其他配置保留；需要继续显式配置的 Codex CLI/API 后台模式时使用 `-KeepModelProvider`。
+- 语音准备可能需要数分钟和网络下载。成功标准是模型文件可用、CPU 加载及静音推理通过；这不等于真实语音准确度已经验收。失败就停止并报告，不假称已就绪。安装智能体应持续查看输出并处理具体网络/依赖问题。
+- `-SkipMedia` 仅用于用户明确选择暂不安装语音的情况，必须报告能力缺口。`-SkipSync` 不跳过模型准备。
 - 第一次同步近 30 天仅建立本地索引，不发送整月正文给模型，不创建项目，不启用后台分析。
 - 需要指定微信账户时加 `-DbDir`；更改资料目录时加 `-DataDir`，注册的命令也会固定使用该绝对目录。
 - 登录/账户选择、依赖或同步失败会明确停止；修好后可重跑，已有服务会更新，不重复添加。
@@ -99,11 +108,22 @@ DSH 支持 MCP tools，但其 MCP prompt 模板限制不影响本项目的检索
 
 ## 4. 模型和媒体能力
 
-文字聊天检索、已有文字文档提取不依赖 Codex；回答由当前 WorkBuddy / DSH 模型完成。语音使用本机 Whisper，首次使用需要下载模型。
+默认 `provider=client`：检索、文件解析和解码由本地服务执行；文字与图片交回当前 WorkBuddy / Codex 对话理解。无需另一套 Codex CLI 登录或额外 API 密钥，也不读取当前客户端的密钥。
 
-图片、扫描 PDF 和文档插图目前由本项目配置的视觉模型识读，默认是已登录的 Codex CLI，**不会自动使用 WorkBuddy / DSH 的登录或内置模型**。安装程序会报告是否检测到视觉配置；它不会替用户登录，也不会读取另一个客户端的密钥。没有 Codex 时，按 [兼容 API 配置](USAGE.md#可选兼容-api) 配置支持图片输入的接口，密钥放在本机环境变量。检测到配置不等于已通过视觉实测。
+`read_attachment` 对图片返回原生 MCP ImageContent，同时提供与该消息对应的原图路径。`prepared` 表示图已准备，不代表客户端已经看见或读懂。若客户端不展示工具附图，安装智能体使用自身读图工具打开 `images[].original_path`；不能把路径、文件名或“返回成功”当作识读成功。缩小预览看不清时补读原图。文档默认每次一页/段、最多两张图；先按 `next_visual_offset` 补当前页图片，再按 `next_start` 读下一页。
 
-若暂时缺少视觉模型，先完成可用的文字检索，并明确报告图片识读尚未就绪。不要为实现“自动安装”隐藏功能缺口或声称所有附件已经可读。
+安装验收时，在用户提供查询目标后选一条图片、一条语音分别读取，并核对确实返回图中内容和转写文字；不要自行浏览无关私人聊天。原生 `project_status`、独立协议测试均不代替这个验收。WorkBuddy 和 Codex 的新版客户端读图目前尚未逐一完成真人验收。
+
+语音模型安装时准备，读取时只用本地缓存。修复或手动升级时，在同一资料目录运行：
+
+```powershell
+.\.venv\Scripts\wechat-assistant.exe use-client
+.\.venv\Scripts\wechat-assistant.exe prepare-media
+```
+
+已有安装应先更新代码并安装新版 `.[mcp,media]`，再重新运行 `install.ps1 -Client workbuddy -SkipSync` 或对应的 `-Client codex`。有自定义资料目录时继续传相同 `-DataDir`；重新连接 MCP 以加载新代码；若本地网页后台已在运行，也要按原启动方式重启该后台，仅刷新浏览器不能加载新的 Python 代码。不要删除资料库、重置索引或重新选择账户。
+
+网页默认展示客户端通过 `save_project_brief` 保存的资料。“在对话中更新”提供可复制的查询提示，不偷偷启动后台模型；旧后台错误保留在运行诊断中。若要无人值守分析，可另选 Codex CLI 或兼容 API 模式，详见[使用说明](USAGE.md#5-附件读取使用哪个模型)。视频解析仍未实现，不能报告视频已适配。
 
 ## 适配依据与验证范围
 
@@ -117,7 +137,7 @@ DSH 支持 MCP tools，但其 MCP prompt 模板限制不影响本项目的检索
 
 2026-11-14，使用者在 Windows 的 WorkBuddy 5.9.3 中完成首次信任后，反馈 **20 个原生工具全部可见，`project_status` 原生调用成功，返回同步状态**。这项记录只覆盖原生接入和状态查询；不记录私人消息数量、项目名或聊天内容。不能从这一结果推断“所有功能已验证”，也不能将成功单独归因于重启或断言不支持热加载。
 
-仓库测试另覆盖配置保留、备份、重复安装、路径更新、冲突拒绝和独立 stdio 检查。WorkBuddy 中具体项目检索、资料更新、图片/语音/附件读取仍待逐项验证；DSH 真实客户端验收待完成。未知版本以本机实际结构为准。
+仓库测试另覆盖配置保留、备份、重复安装、路径更新、冲突拒绝和独立 stdio 检查。新增测试覆盖无外部模型的原生图片传输、文档/附图分页、出处失效、旧配置迁移、Codex TOML 保留和语音安装/离线读取边界。WorkBuddy/Codex 新版图片显示与真实语音仍需在对应客户端验收；DSH 真实客户端验收待完成。未知版本以本机实际结构为准。
 
 ### 后台分析引用错误与接入状态分开判断
 

@@ -167,26 +167,33 @@ def mcp(root):
 
 
 @main.command('register-client')
-@click.argument('client', type=click.Choice(['workbuddy', 'dsh']))
-@click.option('--config-path', type=click.Path(), help='WorkBuddy 实际使用的 mcp.json。')
+@click.argument('client', type=click.Choice(['workbuddy', 'codex', 'dsh']))
+@click.option('--config-path', type=click.Path(), help='WorkBuddy mcp.json 或 Codex config.toml 的实际路径。')
 @click.option('--profile-dir', type=click.Path(exists=True), help='DSH 当前 profile 目录，不自动猜测。')
 @click.pass_obj
 def register_client(root, client, config_path, profile_dir):
     """检查 MCP 后注册到指定客户端，备份原配置并保留其他服务。"""
-    from .setup_client import server_spec, check_connection, register_workbuddy, register_dsh, media_readiness
+    from .setup_client import server_spec, check_connection, register_workbuddy, register_codex, register_dsh, media_readiness
     try:
         if client == 'dsh' and (not profile_dir or config_path):
             raise ValueError('DSH 需要 --profile-dir 指向当前 profile，不能使用 --config-path。')
-        if client == 'workbuddy' and profile_dir:
-            raise ValueError('WorkBuddy 不使用 --profile-dir。')
+        if client in {'workbuddy','codex'} and profile_dir:
+            raise ValueError('WorkBuddy / Codex 不使用 --profile-dir。')
         spec = server_spec(root)
         checks = check_connection(spec)
         if client == 'workbuddy':
             result = register_workbuddy(Path(config_path).resolve() if config_path else Path.home() / '.workbuddy' / 'mcp.json', spec)
+        elif client == 'codex':
+            path = Path(config_path).resolve() if config_path else Path(os.environ.get('CODEX_HOME', Path.home() / '.codex')) / 'config.toml'
+            result = register_codex(path, spec)
         else:
             result = register_dsh(Path(profile_dir).resolve(), spec)
         result.update(checks)
         result['vision'] = media_readiness(root)
+        from .config import load
+        from .speech import readiness
+        data_root, config = load(root)
+        result['speech'] = readiness(data_root, config)
         click.echo(json.dumps(result, ensure_ascii=False, indent=2))
     except Exception as exc:
         raise click.ClickException(str(exc)) from None
@@ -200,9 +207,35 @@ def doctor(root):
     try:
         result = check_connection(server_spec(root))
         result['vision'] = media_readiness(root)
+        from .config import load
+        from .speech import readiness
+        data_root, config = load(root)
+        result['speech'] = readiness(data_root, config)
         click.echo(json.dumps(result, ensure_ascii=False, indent=2))
     except Exception as exc:
         raise click.ClickException(str(exc)) from None
+
+
+@main.command('use-client')
+@click.pass_obj
+def use_client(root):
+    """切换到当前客户端负责理解和总结，备份旧配置并关闭独立后台分析。"""
+    from .setup_client import use_current_client
+    click.echo(json.dumps(use_current_client(root), ensure_ascii=False, indent=2))
+
+
+@main.command('prepare-media')
+@click.pass_obj
+def prepare_media(root):
+    """安装阶段下载本地语音模型并完成加载/推理测试；不读取私人附件。"""
+    from .config import load
+    from .speech import prepare
+    data_root, config = load(root)
+    click.echo('正在准备本地语音模型，首次需要联网下载；完成前不算语音已就绪。')
+    try:
+        click.echo(json.dumps(prepare(data_root, config), ensure_ascii=False, indent=2))
+    except Exception as exc:
+        raise click.ClickException('语音准备失败；检查网络、磁盘和依赖后重跑 prepare-media。' + str(exc)) from None
 
 
 @main.command('call-tool')

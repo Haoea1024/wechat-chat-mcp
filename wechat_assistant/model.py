@@ -68,6 +68,8 @@ class Model:
         self.root, self.config = root, config
 
     def call(self, task, data, schema=ANALYSIS_SCHEMA, images=None):
+        if self.config['provider'] == 'client':
+            raise ValueError('当前使用客户端模式，请在 WorkBuddy / Codex 对话中查询并保存项目资料；网页不会另启模型。')
         prompt = SYSTEM + "\n任务：" + task + "\n输入数据(JSON)：\n" + json.dumps(data, ensure_ascii=False)
         if self.config["provider"] == "codex":
             return self._codex(prompt, schema, images or [])

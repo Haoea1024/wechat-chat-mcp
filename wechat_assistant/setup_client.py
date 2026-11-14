@@ -73,6 +73,40 @@ def register_workbuddy(path, spec):
             **workbuddy_activation(path)}
 
 
+def register_codex(path, spec):
+    import tomlkit
+    path = Path(path)
+    original = path.read_bytes() if path.exists() else None
+    doc = tomlkit.parse(original.decode('utf-8-sig')) if original is not None else tomlkit.document()
+    servers = doc.setdefault('mcp_servers', tomlkit.table())
+    names = [name for name in (SERVER, 'wechat-project-assistant') if name in servers]
+    if len(names) > 1:
+        raise ValueError('已有两份微信服务配置，请先核对要保留哪一份。')
+    name = names[0] if names else SERVER
+    old = servers.setdefault(name, tomlkit.table())
+    if old and 'wechat-assistant' not in str(old.get('command', '')):
+        raise ValueError('同名服务不是本项目，原配置未修改。')
+    old.update({**spec, 'env': {**old.get('env', {}), **spec['env']},
+                'startup_timeout_sec': max(old.get('startup_timeout_sec', 0), 60),
+                'tool_timeout_sec': max(old.get('tool_timeout_sec', 0), 900)})
+    backup = write_config(path, original, tomlkit.dumps(doc))
+    return {'client': 'codex', 'config': str(path), 'server': name, 'backup': backup,
+            'configuration_status': 'saved', 'native_call': 'not_verified_by_installer',
+            'next_step': '在 Codex 刷新 MCP 连接并通过原生工具调用 project_status；遵循客户端自己的信任与启用设置。'}
+
+
+def use_current_client(root=None):
+    """Explicit installer migration; preserve every other setting and exact backup."""
+    from .config import data_dir, DEFAULTS
+    root = data_dir(root)
+    path = root / 'config.json'
+    original = path.read_bytes() if path.exists() else None
+    config = DEFAULTS | (json.loads(original.decode('utf-8-sig')) if original is not None else {})
+    config.update(provider='client', background_analysis=False)
+    backup = write_config(path, original, json.dumps(config, ensure_ascii=False, indent=2) + '\n')
+    return {'provider': 'client', 'background_analysis': False, 'config_backup': backup}
+
+
 def workbuddy_activation(config_path):
     # Presence alone never proves that this exact command/config was approved.
     # WorkBuddy owns the approval store; this installer must never write it.
@@ -164,6 +198,8 @@ def check_connection(spec):
 def media_readiness(root=None):
     from .config import load
     _, config = load(root)
+    if config['provider'] == 'client':
+        return '图片交给当前客户端识读，无需 Codex CLI / 独立 API；实际展示和识读须在当前客户端验证。'
     if config['provider'] == 'codex':
         found = bool(shutil.which(config.get('codex_command', 'codex')))
         return '检测到 Codex CLI；登录与图片识读仍需实测。' if found else '未配置图片识读：需要 Codex CLI 或兼容视觉 API；文字检索可用。'

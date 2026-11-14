@@ -1,10 +1,11 @@
 import json
 import os
+import tempfile
 from pathlib import Path
 
 
 DEFAULTS = {
-    "provider": "codex", "model": "", "api_base": "", "api_key_env": "WECHAT_ASSISTANT_API_KEY",
+    "provider": "client", "model": "", "api_base": "", "api_key_env": "WECHAT_ASSISTANT_API_KEY",
     "codex_command": "codex", "wechat_config": "", "history_days": 30,
     "poll_seconds": 60, "analysis_seconds": 600, "batch_size": 120,
     "schedule": ["08:00", "12:00", "18:00"], "notifications": True,
@@ -27,4 +28,11 @@ def load(path=None):
 
 
 def save(root, config):
-    (root / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2), "utf-8")
+    # Readers may run in the web worker and MCP process at the same time.
+    with tempfile.NamedTemporaryFile(dir=root, delete=False) as stream:
+        temporary = Path(stream.name)
+        stream.write(json.dumps(config, ensure_ascii=False, indent=2).encode('utf-8'))
+    try:
+        os.replace(temporary, root / 'config.json')
+    finally:
+        temporary.unlink(missing_ok=True)
