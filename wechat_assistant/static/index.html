@@ -1,13 +1,48 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="local-token" content="__TOKEN__"><title>微信项目助理</title>
-<style>
-:root{font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#21332c;background:#f4f6f3;font-size:15px}*{box-sizing:border-box}body{margin:0}header{background:#153e31;color:white;padding:32px max(5vw,24px)}header h1{margin:0 0 9px;font-size:27px}header p{color:#bcd4c8;margin:0}main{max-width:1280px;margin:24px auto;padding:0 24px}nav{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}button,select,input,textarea{font:inherit;border:1px solid #cad6ce;border-radius:7px;padding:9px 12px;background:white;color:inherit}button{cursor:pointer}button:hover{background:#e5efe9}button.primary,nav button.active{background:#216b50;color:white;border-color:#216b50}button.small{padding:4px 8px;font-size:12px;margin:3px}input,textarea{width:100%;margin:7px 0 12px}textarea{min-height:85px;resize:vertical}label{display:block;color:#486052;font-size:13px}section[hidden]{display:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}.card{background:white;border:1px solid #dfe6df;border-radius:12px;padding:22px;margin-bottom:16px}.card h2{font-size:19px;margin:0 0 14px}.card h3{font-size:16px;margin:6px 0 12px}.muted,small{color:#688071}.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.between{justify-content:space-between}.badge{display:inline-block;border-radius:6px;padding:4px 8px;background:#eaf2ed;font-size:12px}.error{color:#a33332;background:#fff0ec;padding:12px;border-radius:8px;white-space:pre-wrap}.stat{font-size:27px;margin:4px 0}.item{border-top:1px solid #e7ece7;padding:14px 0}.item p{margin:8px 0}.text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}.empty{padding:30px 0;color:#688071;text-align:center}.filters{margin:14px 0}.notice{position:fixed;right:22px;bottom:22px;max-width:460px;background:#213e30;color:white;padding:14px 20px;border-radius:9px;z-index:9}.notice:empty{display:none}dialog{width:min(740px,94vw);max-height:85vh;border:0;border-radius:12px;padding:25px;box-shadow:0 18px 80px #0003}dialog::backdrop{background:#10261c66}details{margin:12px 0}summary{cursor:pointer;color:#52705c}a{color:#216b50}.split{display:grid;grid-template-columns:1fr 1fr;gap:20px}@media(max-width:700px){.split{grid-template-columns:1fr}header{padding:24px}main{padding:0 14px}.card{padding:16px}}
-#status{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;padding:0 0 4px}header{padding-top:23px;padding-bottom:23px}.progress{font-size:16px;margin-bottom:18px}.conversation-list{border-left:3px solid #dbe7de;padding-left:14px;margin:16px 0}.conversation{margin:12px 0}.conversation>span{font-size:12px}.conversation p{margin:4px 0}.briefs{display:flex;gap:24px;flex-wrap:wrap;margin:14px 0 20px}.brief{flex:1;min-width:220px}.brief h3{font-size:13px;color:#47705a}.brief ul{margin:0;padding-left:20px;line-height:1.8}.uncertainties h3{color:#926b30}.project-card>details{border-top:1px solid #e7ece7;margin-top:18px;padding-top:12px}.project-card>details>summary{font-size:13px}
-</style></head><body><header><div class="row between"><div><h1>微信项目助理</h1><p>看当前进度，知道下一步。</p></div><span class="badge" style="color:#21332c" id="mode">本机运行</span></div></header>
-<main><div id="status"></div><nav id="nav"><button data-tab="projects" class="active">进度概览</button><button data-tab="inbox">提醒收件箱</button><button data-tab="search">查聊天 · 提问题</button><button data-tab="settings">设置与运行</button></nav>
-<section id="projects"><div class="row between"><p class="muted">只关注你配置的项目；按聊天最新状态总结，推测标明，依据按需展开。</p><div class="row"><button id="add-project">添加项目</button><button id="feedback">我的反馈</button><button id="analyze">更新进度</button></div></div><div id="project-list"></div></section>
-<section id="inbox" hidden><p class="muted">每天 08:00 / 12:00 / 18:00（北京时间）汇总有变化的事项，明确紧急事项额外提醒。</p><div id="notification-list"></div></section>
-<section id="search" hidden><div class="card"><h2>找消息，或直接问下一步</h2><select id="search-project"><option value="">全部聊天</option></select><textarea id="question" placeholder="例如：科研管理项目现在还缺什么？有哪些事情需要我确认？"></textarea><div class="row"><button class="primary" id="ask">结合聊天回答</button><button id="find">按原文搜索</button><button id="attachments">图片 · 语音 · 文件</button></div><p class="muted">检索使用本地消息；生成回答时，相关片段会发送给所选模型。</p></div><div id="answers"></div></section>
-<section id="settings" hidden><div class="split"><div class="card"><h2>采集与提醒</h2><p class="muted">默认持续采集本机消息，项目资料由当前对话按需整理。仅启用独立后台模型时自动分析；电脑休眠、退出程序或微信离线期间无法实时提醒。</p><div class="row"><button id="sync">立即采集</button><button id="test-notify">测试桌面提醒</button></div><label>补导入更早记录（天）<input id="backfill-days" type="number" min="1" value="90"></label><button id="backfill">补导入</button><div id="runtime" class="text muted"></div></div>
-<form id="settings-form" class="card"><h2>模型与频率</h2><label><input name="background_analysis" type="checkbox" style="width:auto"> 独立后台分析（仅 Codex CLI / API 模式；会使用模型额度）</label><label>模型入口<select name="provider"><option value="client">当前 WorkBuddy / Codex 对话（推荐）</option><option value="codex">独立 Codex CLI（可选）</option><option value="api">兼容 Chat Completions 的 API</option></select></label><label>模型名称（Codex 留空使用默认模型）<input name="model"></label><label>Codex 可执行文件<input name="codex_command"></label><label>API Base URL<input name="api_base" placeholder="https://example.com/v1"></label><label>API 密钥环境变量名<input name="api_key_env"></label><label>采集间隔（秒）<input name="poll_seconds" type="number" min="15" max="3600"></label><label>分析间隔（秒）<input name="analysis_seconds" type="number" min="30" max="86400"></label><label>每批分析消息数<input name="batch_size" type="number" min="10" max="500"></label><label>简报时间（北京时间，逗号分隔）<input name="schedule"></label><label><input name="notifications" type="checkbox" style="width:auto"> 启用 Windows 桌面提醒</label><button class="primary">保存设置</button></form></div></section>
-</main><dialog id="dialog"><div class="row between"><h2 id="dialog-title">详情</h2><button id="close-dialog">关闭</button></div><div id="dialog-body"></div></dialog><div id="notice" class="notice" role="status"></div><script src="/app.js"></script></body></html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="local-token" content="__TOKEN__"><title>微信项目助理</title><link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<aside class="sidebar">
+ <a class="brand" href="/" aria-label="微信项目助理首页"><span class="brand-mark" aria-hidden="true">微</span><span>微信项目助理</span></a>
+ <nav id="nav" aria-label="主导航">
+  <button data-tab="projects" class="active" aria-current="page"><span aria-hidden="true">▦</span>项目</button>
+  <button data-tab="search"><span aria-hidden="true">⌕</span>查找资料</button>
+  <button data-tab="inbox"><span aria-hidden="true">▤</span>提醒</button>
+  <button data-tab="settings"><span aria-hidden="true">⚙</span>设置</button>
+ </nav>
+ <div class="sidebar-footer"><span class="connection-dot" aria-hidden="true"></span><span id="mode">本机资料</span></div>
+</aside>
+<main>
+ <div id="status" role="status"></div>
+ <section id="projects" aria-labelledby="projects-title">
+  <header class="page-heading"><div><h1 id="projects-title">项目</h1><p id="project-count"></p></div><div class="row"><button id="feedback" class="ghost">我的反馈</button><button id="analyze">更新资料</button><button id="add-project" class="primary">＋ 添加项目</button></div></header>
+  <div class="project-toolbar"><span id="project-section-title">正在跟踪</span><button id="toggle-archived" class="ghost" hidden>查看已忽略项目</button></div>
+  <div id="project-list" class="project-grid"></div>
+ </section>
+ <section id="search" hidden aria-labelledby="search-title">
+  <header class="page-heading"><div><h1 id="search-title">查找资料</h1></div></header>
+  <div class="card search-box"><label for="question">查找聊天、文件，或提出问题</label><textarea id="question" placeholder="输入项目名、关键词或你想了解的问题"></textarea><div class="row between"><select id="search-project" aria-label="搜索范围"><option value="">全部聊天</option></select><div class="row"><button id="attachments">浏览附件</button><button id="ask">在对话中提问</button><button class="primary" id="find">搜索原文</button></div></div></div>
+  <div id="answers"></div>
+ </section>
+ <section id="inbox" hidden aria-labelledby="inbox-title"><header class="page-heading"><div><h1 id="inbox-title">提醒</h1></div></header><div id="notification-list"></div></section>
+ <section id="settings" hidden aria-labelledby="settings-title">
+  <header class="page-heading"><div><h1 id="settings-title">设置</h1></div></header>
+  <div class="settings-grid">
+   <div><div class="card"><h2>微信同步</h2><p id="sync-summary" class="muted"></p><button id="sync">立即同步</button><details><summary>补充历史记录</summary><label for="backfill-days">导入最近多少天<input id="backfill-days" type="number" min="1" max="3650" value="90"></label><button id="backfill">开始导入</button></details></div>
+   <details class="card diagnostics"><summary>运行诊断</summary><pre id="runtime"></pre></details></div>
+   <form id="settings-form" class="card"><h2>整理方式</h2>
+    <label>由谁整理项目资料<select name="provider"><option value="client">当前 WorkBuddy / Codex 对话</option><option value="codex">独立 Codex CLI</option><option value="api">兼容 API</option></select></label>
+    <label>模型名称<input name="model" placeholder="使用默认模型时留空"></label><label>Codex 程序路径<input name="codex_command"></label><label>API 地址<input name="api_base" placeholder="https://example.com/v1"></label><label>密钥环境变量<input name="api_key_env"></label>
+    <label class="checkbox-label"><input name="background_analysis" type="checkbox"> 自动整理项目（会使用模型额度）</label>
+    <details><summary>同步频率与提醒</summary><label>同步间隔（秒）<input name="poll_seconds" type="number" min="15" max="3600"></label><label>分析间隔（秒）<input name="analysis_seconds" type="number" min="30" max="86400"></label><label>每批消息数<input name="batch_size" type="number" min="10" max="500"></label><label>提醒时间（北京时间）<input name="schedule" placeholder="08:00, 12:00, 18:00"></label><label class="checkbox-label"><input name="notifications" type="checkbox"> 桌面提醒</label><button type="button" id="test-notify">测试提醒</button></details>
+    <button class="primary">保存设置</button>
+   </form>
+  </div>
+ </section>
+</main>
+<dialog id="dialog" aria-labelledby="dialog-title"><div class="dialog-heading"><h2 id="dialog-title">详情</h2><button id="close-dialog" class="icon-button" aria-label="关闭">×</button></div><div id="dialog-body"></div></dialog>
+<div id="notice" class="notice" role="status"></div><script src="/app.js"></script>
+</body></html>

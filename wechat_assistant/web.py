@@ -35,6 +35,8 @@ def serve(service, port):
                 return self.send(page.encode(), content_type="text/html; charset=utf-8")
             if route.path == "/app.js":
                 return self.send((static / "app.js").read_bytes(), content_type="text/javascript; charset=utf-8")
+            if route.path == "/app.css":
+                return self.send((static / "app.css").read_bytes(), content_type="text/css; charset=utf-8")
             if self.headers.get("X-Local-Token") != token:
                 return self.send({"error": "请刷新本地页面"}, 403)
             try:
