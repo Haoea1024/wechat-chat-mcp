@@ -79,8 +79,11 @@ def workbuddy_activation(config_path):
     approvals = Path(config_path).parent / 'mcp-approvals.json'
     return {
         'native_activation': 'requires_client_verification',
+        'configuration_status': 'saved',
+        'client_trust': 'verify_in_client',
+        'native_call': 'not_verified_by_installer',
         'trust_record_file': 'present_not_verified' if approvals.is_file() else 'not_found',
-        'next_step': '在 WorkBuddy 的 MCP 服务器面板查看本服务；若提示首次信任，点击“信任”后连接，再在当前对话调用 project_status。列表未更新时先使用客户端刷新/配置保存入口。',
+        'next_step': 'WorkBuddy 5.9.3：专家·技能·连接器 → 连接器 → 自定义连接器，查看本服务；若提示首次信任，点击“信任”后连接，再在当前对话通过原生工具调用 project_status。列表未更新时先使用客户端刷新/配置保存入口。',
         'approval_boundary': '信任确认由 WorkBuddy 管理；不能写入审批文件，也不能用 call-tool 绕过待确认、拒绝或禁用状态。重启不代替信任确认。',
     }
 

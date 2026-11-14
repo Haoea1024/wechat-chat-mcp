@@ -4,7 +4,7 @@
 
 把仓库地址发给 WorkBuddy、DeepSeek Harness（DSH）或 Codex，并说“安装并接入当前客户端”。智能体应先读 [安装指南](INSTALL.md)，完成本机依赖、微信连接、同步、客户端注册与实际调用验证。无需用户手填 MCP JSON/YAML。
 
-WorkBuddy / DSH 提供适配脚本，真实客户端全链路仍待验收。图片识读不会自动继承它们的模型，详见安装指南。
+WorkBuddy 5.9.3 已由使用者验证原生工具加载和 `project_status` 调用，具体项目检索与媒体读取仍待验证；DSH 真实客户端仍待验收。WorkBuddy 的确认入口是「专家·技能·连接器 → 连接器 → 自定义连接器」。图片识读不会自动继承客户端模型，详见安装指南。
 
 手动操作和已有 Codex 配置仍可参考本页。功能、附件格式与工具列表见 [技术参考](REFERENCE.md)。
 
@@ -145,7 +145,7 @@ WorkBuddy 和 DSH 优先使用[自动安装与注册入口](INSTALL.md#2-自动�
 
 这不是所有客户端通用的完整配置文件：不同产品可能使用其他顶层字段或配置入口。按客户端文档填入相同的 `command` 和 `args`，并为耗时附件调用设置合适的工具超时。标准配置示例见 [MCP 参考服务器文档](https://github.com/modelcontextprotocol/servers#using-an-mcp-client)。
 
-目前仅对 Codex 做过完整验证，不把其他客户端列为已实测支持。
+Codex 已有本机使用验证；WorkBuddy 5.9.3 已验证原生工具可见及状态查询，不等于全部业务工具和媒体格式均已实测。DSH 仍待真实客户端验收。
 
 ### 使用自定义助理数据目录
 

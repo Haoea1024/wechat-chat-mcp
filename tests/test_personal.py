@@ -108,6 +108,42 @@ class PersonalTests(unittest.TestCase):
         bad=self.proposal();bad['projects'][0]['overview']['conversations'][0]['evidence']=[1,4]
         with self.assertRaises(ValueError):apply_analysis(self.store,bad,self.messages,[])
 
+    def test_overview_errors_distinguish_empty_missing_and_cross_chat_without_writes(self):
+        original = self.store.projects()
+        for refs, reason in [([], '没有消息引用'), ([999], '本次输入以外'), ([1, 4], '其他聊天')]:
+            with self.subTest(refs=refs):
+                proposal = self.proposal()
+                proposal['projects'][0]['overview']['conversations'][0]['evidence'] = refs
+                with self.assertRaisesRegex(ValueError, reason) as error:
+                    apply_analysis(self.store, proposal, self.messages, list(self.messages))
+                self.assertIn(f'项目 ID {self.pid}', str(error.exception))
+                self.assertIn('第 1 条', str(error.exception))
+                self.assertNotIn('测试原文', str(error.exception))
+                self.assertEqual(original, self.store.projects())
+                self.assertEqual(6, self.store.status()['pending'])
+
+    def test_analysis_restores_old_overview_evidence_outside_recent_context(self):
+        from wechat_assistant.analysis import analyze
+        from wechat_assistant.config import DEFAULTS
+        overview = {'next_steps': [], 'uncertainties': [], 'conversations': [
+            {'chat_id': 'test:person', 'summary': '历史约定仍待核对', 'evidence': [4]}]}
+        newer = [dict(uid=f'new-{i}', chat_id='test:person', chat_name='测试会话', sender='测试人员',
+                      ts=self.now+100+i, kind='文本', text='测试订单项目 后续讨论', raw='虚构原文', locator='{}') for i in range(35)]
+        self.store.ingest('test', newer, len(newer), self.now+200)
+        with self.store.connect() as db:
+            db.execute('UPDATE projects SET overview=? WHERE id=?', (json.dumps(overview), self.pid))
+            db.execute('UPDATE messages SET analyzed=1')
+        self.store.set('overview_refresh', True)
+        captured = []
+        class Model:
+            def call(self, task, data):
+                captured.append(data)
+                return {'projects': []}
+        analyze(self.store, Model(), DEFAULTS)
+        self.assertEqual(1, len(captured))
+        self.assertEqual([], captured[0]['new_message_ids'])
+        self.assertIn(4, [m['id'] for m in captured[0]['messages']])
+
     def test_pagination_covers_same_second_and_both_chats(self):
         first=project_context(self.store,str(self.pid),limit=2)
         self.assertEqual(6,first['retrieval']['total_matches']);self.assertEqual(2,first['retrieval']['next_offset'])

@@ -65,7 +65,8 @@ def analyze(store, model, config):
         for row in store.rows("SELECT * FROM messages WHERE chat_id=? ORDER BY ts DESC,id DESC LIMIT 24", (chat,)):
             related[row["id"]] = row
     for p in projects:
-        refs = p["evidence"] + [ref for item in p["items"] for ref in item["evidence"]]
+        refs = [ref for chat in p.get('overview', {}).get('conversations', []) for ref in chat.get('evidence', [])]
+        refs += p["evidence"] + [ref for item in p["items"] for ref in item["evidence"]]
         for row in store.evidence(list(dict.fromkeys(refs))[-50:]):
             related[row["id"]] = row
         if p["status"] == "tracked":
@@ -135,11 +136,19 @@ def apply_analysis(store, result, messages, pending_ids, overview_only=False):
                 raise ValueError('确认完成或忽略必须有用户反馈依据。')
             if item["priority"] not in {"normal", "urgent"} or not item["title"].strip():
                 raise ValueError("模型返回了无效优先级或标题。")
-        for chat in p.get('overview', {}).get('conversations', []):
-            if 'chat_id' not in chat and chat['evidence'] and chat['evidence'][0] in messages:
-                chat['chat_id']=messages[chat['evidence'][0]]['chat_id']
-            if not chat['evidence'] or any(ref not in messages or messages[ref]['chat_id'] != chat['chat_id'] for ref in chat['evidence']):
-                raise ValueError('会话概览引用了其他聊天的消息，本批未标记为已分析。')
+        for index, chat in enumerate(p.get('overview', {}).get('conversations', []), 1):
+            context = f'项目 ID {p["id"]} 的第 {index} 条会话概览'
+            refs = chat['evidence']
+            if not refs:
+                raise ValueError(f'{context}没有消息引用，本批未标记为已分析。')
+            missing = [ref for ref in refs if ref not in messages]
+            if missing:
+                raise ValueError(f'{context}引用了本次输入以外的消息 ID {missing[:10]}，本批未标记为已分析。')
+            expected = chat.get('chat_id', messages[refs[0]]['chat_id'])
+            wrong = [ref for ref in refs if messages[ref]['chat_id'] != expected]
+            if wrong:
+                raise ValueError(f'{context}引用了其他聊天的消息 ID {wrong[:10]}，本批未标记为已分析。')
+            chat['chat_id'] = expected
     count, now = 0, int(time.time())
     with store.connect() as db:
         for p in proposed:

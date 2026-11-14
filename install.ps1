@@ -40,8 +40,9 @@ $registerArgs = @('register-client', $Client)
 if ($ConfigPath) { $registerArgs += @('--config-path', $ConfigPath) }
 if ($ProfileDir) { $registerArgs += @('--profile-dir', $ProfileDir) }
 Invoke-WeChatNative '.venv\Scripts\wechat-assistant.exe' ($commonArgs + $registerArgs) 'Client registration incomplete. Fix the reported issue and rerun.'
-Write-Host 'Configuration saved; native client activation is not yet verified. See docs/INSTALL.md.'
+Write-Host 'Step 1 complete: configuration saved and standalone MCP checked.'
+Write-Host 'Step 2: verify client trust/enablement. Step 3: call project_status through native tools in the current client. Only step 3 confirms native activation. See docs/INSTALL.md.'
 if ($Client -eq 'workbuddy') {
-    Write-Host 'Open WorkBuddy MCP Servers. If this service requires trust, confirm it in WorkBuddy, connect, then call project_status. Restarting or call-tool cannot replace client approval.'
+    Write-Host 'WorkBuddy 5.9.3: follow the UI route printed in next_step. Confirm Trust if requested, connect, then call project_status through native tools. Restarting or call-tool cannot replace client approval.'
 }
 if ($SkipSync) { Write-Host 'WeChat connection and sync were skipped; data readiness has NOT been verified.' }
