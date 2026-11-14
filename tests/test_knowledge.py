@@ -241,6 +241,9 @@ class KnowledgeTests(unittest.TestCase):
     def test_stdio_reads_backup_and_saves_cited_brief_without_wechat_connection(self):
         from mcp import ClientSession,StdioServerParameters
         from mcp.client.stdio import stdio_client
+        from wechat_assistant.service import Service
+        web=Service(self.root)
+        self.assertIsNone(web.snapshot()['projects'][0]['brief'])
         mid=self.add('方案附件',kind='链接/文件',file=True)
         path=self.root/'proposal.txt';path.write_text('验收要求：完成接口联调后再确认交付。','utf-8')
         with patch.object(self.reader,'_file_path',return_value=path):self.reader.backup(mid)
@@ -262,7 +265,18 @@ class KnowledgeTests(unittest.TestCase):
                     entry['evidence_ids']=[mid]
                     saved=await call('save_project_brief',dict(project=self.project,expected_version=0,entries=[entry],
                         reviewed_sources=[evidence[0]['review_source']],scope_note='读取方案文件；其他群消息尚未审阅'))
+                    self.assertTrue(saved['saved'])
                     self.assertEqual(1,saved['version'])
+                    visible=web.snapshot()['projects'][0]['brief']
+                    self.assertEqual(saved['version'],visible['version'])
+                    self.assertEqual(entry['text'],visible['entries']['delivery']['text'])
+                    self.assertEqual([mid],visible['entries']['delivery']['evidence_ids'])
+                    self.assertEqual('读取方案文件；其他群消息尚未审阅',visible['scope_note'])
+                    self.assertEqual([],web.snapshot()['feedback'])
+                    conflict=await session.call_tool('save_project_brief',dict(project=self.project,expected_version=0,
+                        entries=[entry],reviewed_sources=[],scope_note='过期版本不应覆盖网页资料'))
+                    self.assertTrue(conflict.isError)
+                    self.assertEqual(visible,web.snapshot()['projects'][0]['brief'])
                     brief=await call('get_project_brief',{'project':self.project})
                     self.assertTrue(brief['assets'][0]['backups'][0]['matches_current_message'])
                     updates=await call('read_project_updates',{'project':self.project})

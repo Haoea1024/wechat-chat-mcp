@@ -167,7 +167,7 @@ def save_brief(store,project,expected_version,entries,reviewed_sources,scope_not
         db.execute('INSERT INTO project_briefs VALUES (?,?,?,?)',(pid,version+1,json.dumps(body,ensure_ascii=False),int(time.time())))
         db.executemany('INSERT OR REPLACE INTO project_reviewed VALUES (?,?,?,?)',
                        [(pid,r['message_id'],r['digest'],r['media_digest']) for r in updates.values()])
-    return dict(project_id=pid,version=version+1,entries=len(merged),reviewed_messages=len(updates),
+    return dict(saved=True,project_id=pid,version=version+1,entries=len(merged),reviewed_messages=len(updates),
         note='未提供的条目继续保留；旧版本和原始消息未删除。助手资料不等于用户确认。')
 
 

@@ -63,7 +63,7 @@ class Service:
         projects=self.store.projects()
         selected=[p['name'] for p in projects if p['id']==payload.get('project_id')]
         request=payload.get('question') or ('请更新项目“'+selected[0]+'”的进展。' if selected else '请更新我已配置的项目资料。')
-        return {'handoff': True, 'prompt': request+' 先查看状态和已有项目资料，按需读取新增聊天及附件，保留出处和未读范围，用 save_project_brief 保存更新。不要全量分析所有聊天。',
+        return {'handoff': True, 'prompt': request+' 先查看状态和已有项目资料，按需读取新增聊天及附件。明确指定项目的查询默认在最终回答前用 save_project_brief 保存新增结论、修订及实际已读范围，无需再询问；保留出处和未读范围，成功后网页即可查看。用户要求不保存或资料与覆盖均无变化时跳过。不要全量分析所有聊天。',
                 'note': '复制到当前 WorkBuddy / Codex 对话执行。网页不会启动其他模型；保存后此页自动显示资料。'}
 
     def execute(self, action, payload):
