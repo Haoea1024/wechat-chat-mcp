@@ -51,7 +51,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client codex
 
 ### 通用行为与恢复
 
-指定 Client 后，脚本依次：创建/复用 `.venv` → 安装 `.[mcp,media]` → WorkBuddy/Codex 切换当前客户端模式 → 准备并实测语音模型 → `connect` → `sync` → 独立 stdio 握手及 `project_status` → 备份并合并客户端配置。
+指定 Client 后，脚本依次：创建/复用 `.venv` → 安装 `.[mcp,media]` → WorkBuddy/Codex 切换当前客户端模式 → 准备并实测语音模型 → `connect` → `sync` → 独立 stdio 握手及 `project_status` → 备份并合并客户端配置 → 检查并重启同一资料目录的旧网页后台。
 
 - WorkBuddy/Codex 安装默认把 `provider` 设为 `client` 并关闭独立后台分析。旧 `config.json` 先完整备份，项目、反馈、账户选择和其他配置保留；需要继续显式配置的 Codex CLI/API 后台模式时使用 `-KeepModelProvider`。
 - 语音准备可能需要数分钟和网络下载。成功标准是模型文件可用、CPU 加载及静音推理通过；这不等于真实语音准确度已经验收。失败就停止并报告，不假称已就绪。安装智能体应持续查看输出并处理具体网络/依赖问题。
@@ -121,7 +121,15 @@ DSH 支持 MCP tools，但其 MCP prompt 模板限制不影响本项目的检索
 .\.venv\Scripts\wechat-assistant.exe prepare-media
 ```
 
-已有安装应先更新代码并安装新版 `.[mcp,media]`，再重新运行 `install.ps1 -Client workbuddy -SkipSync` 或对应的 `-Client codex`。有自定义资料目录时继续传相同 `-DataDir`；重新连接 MCP 以加载新代码；若本地网页后台已在运行，也要按原启动方式重启该后台，仅刷新浏览器不能加载新的 Python 代码。不要删除资料库、重置索引或重新选择账户。
+已有安装不能只做 `git pull`。应先更新代码并安装新版 `.[mcp,media]`，再重新运行 `install.ps1 -Client workbuddy -SkipSync` 或对应的 `-Client codex`。有自定义资料目录时继续传相同 `-DataDir`；重新连接 MCP 以加载新代码；安装脚本会调用 `refresh-web`，校验资料目录后重启旧网页后台。未运行网页则不启动它。也可单独运行 `refresh-web`；启动器 `launch.py` 会检查版本，不再盲目复用旧进程。不能确认旧进程归属时会停止并说明，不强杀进程。不要删除资料库、重置索引或重新选择账户。
+
+### 页面没有样式，或仍要求 Codex / API
+
+旧后台曾每次从磁盘读取新 HTML/JS，但路由和数据结构仍停留在旧版本，可能让 `/app.css` 返回 403。新版把页面资源固定在同一运行版本，升级时通过后台版本检查整体重启。仅刷新浏览器不能替换旧 Python 进程。
+
+如果已安装依赖，只需在同一资料目录依次运行 `use-client`、`refresh-web`，再刷新网页，并重新连接 MCP。确认 `provider=client`、`/app.css` 返回 200，以及 `/api/state` 的项目包含 `brief` 字段。诊断时不要打印私人项目正文或配置中的凭据。
+
+WorkBuddy 不需要额外的 Codex CLI 或 API 密钥来填充页面。若用户希望查看某个项目的进展，当前客户端应围绕该项目读取聊天、整理结论并调用 `save_project_brief`，不能只在聊天回复中给出总结。切换模式会保留原有摘要，暂无新版资料时标为“历史摘要 · 待更新”。没有用户指定的项目/查询目标时，不为填满页面自动浏览所有聊天。
 
 网页默认展示客户端通过 `save_project_brief` 保存的资料。“在对话中更新”提供可复制的查询提示，不偷偷启动后台模型；旧后台错误保留在运行诊断中。若要无人值守分析，可另选 Codex CLI 或兼容 API 模式，详见[使用说明](USAGE.md#5-附件读取使用哪个模型)。视频解析仍未实现，不能报告视频已适配。
 

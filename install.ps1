@@ -48,6 +48,7 @@ $registerArgs = @('register-client', $Client)
 if ($ConfigPath) { $registerArgs += @('--config-path', $ConfigPath) }
 if ($ProfileDir) { $registerArgs += @('--profile-dir', $ProfileDir) }
 Invoke-WeChatNative '.venv\Scripts\wechat-assistant.exe' ($commonArgs + $registerArgs) 'Client registration incomplete. Fix the reported issue and rerun.'
+Invoke-WeChatNative '.venv\Scripts\wechat-assistant.exe' ($commonArgs + @('refresh-web')) 'An existing web page needs attention. Resolve the reported ownership/shutdown issue and rerun refresh-web.'
 Write-Host 'Step 1 complete: configuration saved and standalone MCP checked.'
 Write-Host 'Step 2: verify client trust/enablement. Step 3: call project_status through native tools in the current client. Only step 3 confirms native activation. See docs/INSTALL.md.'
 if ($Client -eq 'workbuddy') {

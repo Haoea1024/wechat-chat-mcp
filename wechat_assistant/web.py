@@ -2,6 +2,7 @@ import json
 import secrets
 import sqlite3
 import threading
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -10,6 +11,13 @@ from urllib.parse import parse_qs, urlparse
 def serve(service, port):
     token = secrets.token_urlsafe(24)
     static = Path(__file__).parent / "static"
+    from .web_runtime import APP, fingerprint
+    runtime = dict(app=APP, revision=fingerprint(), data_dir=str(service.root.resolve()), pid=os.getpid(), demo=service.demo)
+    # Serve one immutable bundle for this process. A git pull must not combine
+    # new HTML/JS with old Python routes or the old state schema.
+    page = (static / 'index.html').read_text('utf-8').replace('__TOKEN__', token).encode()
+    javascript = (static / 'app.js').read_bytes()
+    stylesheet = (static / 'app.css').read_bytes()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -31,15 +39,16 @@ def serve(service, port):
             if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"}:
                 return self.send({"error": "仅支持本机访问"}, 403)
             if route.path == "/":
-                page = (static / "index.html").read_text("utf-8").replace("__TOKEN__", token)
-                return self.send(page.encode(), content_type="text/html; charset=utf-8")
+                return self.send(page, content_type="text/html; charset=utf-8")
             if route.path == "/app.js":
-                return self.send((static / "app.js").read_bytes(), content_type="text/javascript; charset=utf-8")
+                return self.send(javascript, content_type="text/javascript; charset=utf-8")
             if route.path == "/app.css":
-                return self.send((static / "app.css").read_bytes(), content_type="text/css; charset=utf-8")
+                return self.send(stylesheet, content_type="text/css; charset=utf-8")
             if self.headers.get("X-Local-Token") != token:
                 return self.send({"error": "请刷新本地页面"}, 403)
             try:
+                if route.path == '/api/runtime':
+                    return self.send(runtime)
                 if route.path == "/api/state":
                     return self.send(service.snapshot())
                 if route.path == "/api/message":

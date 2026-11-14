@@ -86,13 +86,13 @@ function renderProjects(){
  const projects=showArchived?archived:active;
  if(!projects.length){const box=el('div',undefined,'empty');box.append(el('h2',showArchived?'没有已忽略的项目':'从一个项目开始'),el('p',showArchived?'正在跟踪的项目仍保留在首页。':'添加项目后，在对话中查询并保存资料。'));if(!showArchived)box.append(button('添加项目',()=>$('#add-project').click(),'primary'));target.append(box);return;}
  for(const p of projects){
-  const entries=client?projectEntries(p):[],main=entries.find(e=>e.section==='status'&&e.basis!=='open')||entries.find(e=>['decision','background'].includes(e.section)&&e.basis!=='open');
-  const next=client?entries.filter(e=>e.section==='next_step'&&e.basis!=='open'):(p.overview?.next_steps||p.items.filter(i=>i.state==='open'&&i.kind==='task').map(i=>i.title)).map(text=>({text}));
-  const questions=client?entries.filter(e=>e.section==='question'||e.basis==='open'):(p.overview?.uncertainties||p.items.filter(i=>i.state==='open'&&['question','risk'].includes(i.kind)).map(i=>i.title)).map(text=>({text}));
+  const hasBrief=client&&!!p.brief,hasLegacy=!!((p.evidence||[]).length||p.items.length||p.overview?.conversations?.length),entries=hasBrief?projectEntries(p):[],main=entries.find(e=>e.section==='status'&&e.basis!=='open')||entries.find(e=>['decision','background'].includes(e.section)&&e.basis!=='open');
+  const next=hasBrief?entries.filter(e=>e.section==='next_step'&&e.basis!=='open'):(p.overview?.next_steps||p.items.filter(i=>i.state==='open'&&i.kind==='task').map(i=>i.title)).map(text=>({text}));
+  const questions=hasBrief?entries.filter(e=>e.section==='question'||e.basis==='open'):(p.overview?.uncertainties||p.items.filter(i=>i.state==='open'&&['question','risk'].includes(i.kind)).map(i=>i.title)).map(text=>({text}));
   const card=el('article',undefined,'card project-card'),head=el('div',undefined,'card-heading'),title=el('div');title.append(el('h2',p.name));
-  if(client&&p.brief)title.append(el('small','保存于 '+date(p.brief.created).slice(5,16)));else if(!client)title.append(el('small','后台整理'));else title.append(el('small','尚未整理'));
+  if(client&&p.brief)title.append(el('small','保存于 '+date(p.brief.created).slice(5,16)));else if(client&&hasLegacy)title.append(el('small','历史摘要 · 待更新'));else if(!client)title.append(el('small','后台整理'));else title.append(el('small','尚未整理'));
   head.append(title);if(p.status==='ignored')head.append(el('span','已忽略','badge neutral'));else if(questions.length)head.append(el('span',questions.length+' 项待确认','badge warning'));card.append(head);
-  const summary=client?(main?(main.basis==='inferred'?'推测：':'')+main.text:entries.length?'已保存项目资料，查看详情了解完整内容。':'还没有项目资料。查询后保存的进展会显示在这里。'):(p.summary||'尚无进展记录。');
+  const summary=client?(main?(main.basis==='inferred'?'推测：':'')+main.text:entries.length?'已保存项目资料，查看详情了解完整内容。':hasBrief?'此版本暂无活动条目。':hasLegacy?(p.summary||'已有历史记录，请查看资料。'):'还没有项目资料。查询后保存的进展会显示在这里。'):(p.summary||'尚无进展记录。');
   card.append(el('p',summary,'text progress'));
   for(const block of [cardBlock('下一步',next),cardBlock('待确认',questions,'questions')])if(block)card.append(block);
   const actions=el('div',undefined,'card-actions');actions.append(button('查看资料',()=>projectDetail(p),'outline'),button('补充或纠正',()=>feedbackDialog(p),'ghost'));card.append(actions);target.append(card);

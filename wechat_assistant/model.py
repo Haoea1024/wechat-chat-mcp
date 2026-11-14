@@ -78,7 +78,7 @@ class Model:
     def _codex(self, prompt, schema, images=()):
         exe = shutil.which(self.config.get("codex_command", "codex"))
         if not exe:
-            raise RuntimeError("未找到 Codex CLI，请在设置中填写 codex.exe 路径。")
+            raise RuntimeError("当前配置仍是独立 Codex 模式，但找不到程序。使用 WorkBuddy / Codex 对话时，请在相同资料目录运行 use-client 和 refresh-web，无需另装 CLI 或 API 密钥；只有明确需要独立后台分析时才配置 codex.exe。")
         with tempfile.TemporaryDirectory(prefix="analysis-", dir=self.root) as folder:
             folder = Path(folder)
             schema_path, answer_path = folder / "schema.json", folder / "answer.json"

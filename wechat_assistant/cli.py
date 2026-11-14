@@ -224,6 +224,17 @@ def use_client(root):
     click.echo(json.dumps(use_current_client(root), ensure_ascii=False, indent=2))
 
 
+@main.command('refresh-web')
+@click.pass_obj
+def refresh_web(root):
+    """检查正在运行的本地网页，安全重启同一资料目录的旧版本；未运行时不启动。"""
+    from .web_runtime import ensure_web
+    try:
+        click.echo(json.dumps(ensure_web(root, only_if_running=True), ensure_ascii=False, indent=2))
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from None
+
+
 @main.command('prepare-media')
 @click.pass_obj
 def prepare_media(root):
