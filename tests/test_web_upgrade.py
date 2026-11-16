@@ -103,6 +103,21 @@ class WebUpgradeTests(unittest.TestCase):
         with patch('wechat_assistant.web_runtime.legacy_owned',return_value=False),patch('wechat_assistant.web_runtime.subprocess.Popen') as spawn:
             with self.assertRaisesRegex(ValueError,'无法确认'):ensure_web(self.root,only_if_running=True)
             spawn.assert_not_called()
+
+    def test_usage_route_requires_token_and_polling_does_not_create_usage(self):
+        from wechat_assistant.usage import record
+        service=self.start_current()
+        record(service.store,'mcp','get_messages',calls=2,output_chars=40,output_estimate=20)
+        with self.assertRaises(urllib.error.HTTPError) as error:request(self.port,'/api/usage')
+        self.assertEqual(403,error.exception.code);error.exception.close()
+        current=probe(self.port)
+        first=json.loads(request(self.port,'/api/usage?days=1',current['token']))
+        second=json.loads(request(self.port,'/api/usage?days=1',current['token']))
+        self.assertEqual(first,second)
+        self.assertEqual(2,second['mcp']['calls'])
+        self.assertIsNone(second['client_quota'])
+        with self.assertRaises(urllib.error.HTTPError) as error:request(self.port,'/api/usage?days=-1',current['token'])
+        self.assertEqual(400,error.exception.code);error.exception.close()
         self.assertFalse(self.legacy_stopped)
 
     def test_current_instance_is_reused_and_wrong_data_directory_is_not_stopped(self):

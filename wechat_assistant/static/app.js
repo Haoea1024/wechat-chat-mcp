@@ -101,6 +101,36 @@ function renderProjects(){
 function selectTab(tab){
  for(const section of document.querySelectorAll('main>section'))section.hidden=section.id!==tab;
  for(const b of document.querySelectorAll('nav button')){b.classList.toggle('active',b.dataset.tab===tab);if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
+ if(tab==='usage')refreshUsage().catch(e=>notice(e.message));
+}
+let usageView='',usageRequest=0;
+async function refreshUsage(){
+ const request=++usageRequest,days=$('#usage-days').value,u=await api('usage?days='+days);
+ if(request!==usageRequest)return;
+ const signature=JSON.stringify(u);if(signature===usageView)return;usageView=signature;
+ const target=$('#usage-content');target.replaceChildren();const n=v=>Number(v||0).toLocaleString(),m=u.mcp;
+ const metrics=el('div',undefined,'usage-grid');
+ for(const [label,value,unit] of [['工具调用',n(m.calls),'次'],['返回文字',n(m.output_chars),'字符'],['返回文字粗估',n(m.output_estimate),'token'],['返回图片',n(m.images),'张']]){
+  const card=el('div',undefined,'card usage-metric');card.append(el('p',label),el('strong',value),el('span',unit));metrics.append(card);
+ }target.append(metrics);
+ if(!m.calls)target.append(el('p','这段时间尚无工具调用记录。升级前的消耗无法补算。','muted'));
+ const rows=u.by_operation.filter(r=>r.source==='mcp');
+ if(rows.length){
+  const card=el('div',undefined,'card usage-table-wrap');card.append(el('h2','哪些操作返回的资料最多'));
+  const labels={project_status:'查看状态',discover_chats:'发现会话',find_private_chats:'寻找成员私聊',search_messages:'搜索消息',get_messages:'读取原文',read_conversation:'读取会话',read_attachment:'读取附件',get_project_brief:'恢复项目资料',save_project_brief:'保存项目资料',read_project_updates:'读取项目更新',list_projects:'列出项目',usage_stats:'查看用量',get_project_context:'读取项目上下文',list_attachments:'列出附件',search_chat:'兼容搜索',configure_project:'设置项目',remember_feedback:'保存反馈',list_feedback:'读取反馈',revoke_feedback:'撤销反馈',set_project_chats:'保存会话关联',backup_attachment:'备份附件',unknown_tool:'未知工具'};
+  const table=el('table'),head=el('tr');for(const name of ['操作','调用次数','返回文字粗估','图片','失败'])head.append(el('th',name));const thead=el('thead');thead.append(head);table.append(thead);const body=el('tbody');
+  for(const r of rows){const row=el('tr');for(const value of [labels[r.operation]||r.operation,n(r.calls),n(r.output_estimate)+' token',n(r.images),n(r.errors)])row.append(el('td',value));body.append(row);}table.append(body);card.append(table);target.append(card);
+ }
+ if(u.model.calls){
+  const model=u.model,card=el('div',undefined,'card');card.append(el('h2','独立模型调用'));
+  card.append(el('p',model.reported_calls?`服务商已返回用量：输入 ${n(model.input_tokens)} / 输出 ${n(model.output_tokens)} token（${n(model.reported_calls)} 次请求）。`:'尚未收到服务商的 token 用量回执。'));
+  if(model.unreported_calls)card.append(el('p',`${n(model.unreported_calls)} 次调用用量未知，包含未返回 usage 的 API 请求或独立 CLI 调用；不按零消耗处理。`));
+  if(model.errors)card.append(el('p',`${n(model.errors)} 次调用失败，失败不代表未产生费用。`));
+  card.append(el('p','仅统计插件直接发起的模型请求，与上方 MCP 文字估算分开；token 数不等于费用。','muted'));target.append(card);
+ }
+ const details=el('details',undefined,'card');details.append(el('summary','统计口径'));
+ details.append(el('p',u.note),el('p',`传入工具的参数另计：${n(m.input_chars)} 字符，粗估 ${n(m.input_estimate)} token。图片仅计张数，不折算 token。`),el('p','从 '+date(u.started_at)+' 开始记录；按北京时间统计。只保存计数，不另存聊天正文。'));
+ target.append(details);
 }
 function renderStatus(){
  const s=state.status,client=state.settings.provider==='client',target=$('#status');target.replaceChildren();$('#analyze').textContent=client?'在对话中更新':'更新资料';$('#ask').textContent=client?'在对话中提问':'提问';
@@ -115,12 +145,13 @@ function renderStatus(){
 function renderNotifications(){const target=$('#notification-list');target.replaceChildren();if(!state.notifications.length)empty(target,'暂无提醒。没有变化时不会打扰。');for(const n of state.notifications){const c=el('article',undefined,'card');c.append(el('small',date(n.created)+(n.delivered?' · 已提交系统通知':'')),el('h2',n.title),el('div',n.body,'text'));if(n.error)c.append(el('p',n.error,'error'));target.append(c);}}
 function renderProviderFields(){const f=$('#settings-form'),provider=f.elements.namedItem('provider').value;for(const key of ['codex_command','model','api_base','api_key_env','analysis_seconds','batch_size']){const field=f.elements.namedItem(key);field.closest('label').hidden=key==='codex_command'?provider!=='codex':['api_base','api_key_env'].includes(key)?provider!=='api':provider==='client';}const background=f.elements.namedItem('background_analysis');background.closest('label').hidden=provider==='client';background.disabled=provider==='client';if(background.disabled)background.checked=false;}
 function renderSettings(){if(settingsLoaded)return;const f=$('#settings-form');for(const [key,value]of Object.entries(state.settings)){const input=f.elements.namedItem(key);if(!input)continue;if(input.type==='checkbox')input.checked=value;else input.value=Array.isArray(value)?value.join(', '):value;}settingsLoaded=true;renderProviderFields();}
-async function refresh(){try{state=await api('state');renderStatus();renderProjects();renderNotifications();renderSettings();const select=$('#search-project'),selected=select.value;select.replaceChildren(el('option','全部聊天'));select.firstChild.value='';for(const p of state.projects.filter(p=>p.status==='tracked')){const o=el('option',p.name);o.value=p.id;select.append(o);}select.value=selected;
+async function refresh(){try{state=await api('state');renderStatus();renderProjects();renderNotifications();renderSettings();if(!$('#usage').hidden)await refreshUsage();const select=$('#search-project'),selected=select.value;select.replaceChildren(el('option','全部聊天'));select.firstChild.value='';for(const p of state.projects.filter(p=>p.status==='tracked')){const o=el('option',p.name);o.value=p.id;select.append(o);}select.value=selected;
  const j=state.job;const signature=JSON.stringify(j);if(j&&signature!==lastJob){lastJob=signature;if(!j.ok&&!(state.settings.provider==='client'&&['analyze','ask'].includes(j.action)))notice(j.error);}
  const a=state.answer;if(a&&a.at!==lastAnswer){lastAnswer=a.at;const c=el('div',undefined,'card');c.append(el('h2','根据聊天整理'),el('div',a.result.answer,'text'),refs(a.result.evidence));$('#answers').prepend(c);}
  const m=state.media_result;if(m&&m.at!==lastMedia){const first=lastMedia==='';lastMedia=m.at;if(!first)await showMedia(m.result);}
  if(!m&&lastMedia==='')lastMedia='none';}catch(e){notice('连接本地服务失败：'+e.message);}}
 $('#nav').onclick=e=>{const tab=e.target.closest('button[data-tab]')?.dataset.tab;if(tab)selectTab(tab);};
+$('#usage-days').onchange=()=>refreshUsage().catch(e=>notice(e.message));
 $('#toggle-archived').onclick=()=>{showArchived=!showArchived;renderProjects();};
 $('#close-dialog').onclick=()=>{$('#dialog').close();if(previewURL){URL.revokeObjectURL(previewURL);previewURL=null;}};
 $('#add-project').onclick=()=>{

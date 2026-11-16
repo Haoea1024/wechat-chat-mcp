@@ -50,6 +50,14 @@ CREATE TABLE IF NOT EXISTS attachment_receipts (
 CREATE TABLE IF NOT EXISTS attachment_backups (
  message_id INTEGER,message_digest TEXT,sha256 TEXT,path TEXT,name TEXT,kind TEXT,
  quality TEXT,size INTEGER,created INTEGER,PRIMARY KEY(message_id,message_digest,sha256));
+CREATE TABLE IF NOT EXISTS usage_daily (
+ day TEXT NOT NULL,source TEXT NOT NULL,operation TEXT NOT NULL,
+ calls INTEGER NOT NULL DEFAULT 0,errors INTEGER NOT NULL DEFAULT 0,
+ input_chars INTEGER NOT NULL DEFAULT 0,output_chars INTEGER NOT NULL DEFAULT 0,
+ input_estimate INTEGER NOT NULL DEFAULT 0,output_estimate INTEGER NOT NULL DEFAULT 0,
+ images INTEGER NOT NULL DEFAULT 0,reported_calls INTEGER NOT NULL DEFAULT 0,
+ input_tokens INTEGER NOT NULL DEFAULT 0,output_tokens INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(day,source,operation));
 """
 
 
@@ -58,6 +66,7 @@ class Store:
         self.path = root / "assistant.db"
         with self.connect() as db:
             db.executescript(SCHEMA)
+            db.execute("INSERT OR IGNORE INTO settings VALUES ('usage_started',?)", (json.dumps(int(time.time())),))
             if 'overview' not in {row[1] for row in db.execute('PRAGMA table_info(projects)')}:
                 db.execute("ALTER TABLE projects ADD COLUMN overview TEXT DEFAULT '{}'")
             if 'locator' not in {row[1] for row in db.execute('PRAGMA table_info(messages)')}:

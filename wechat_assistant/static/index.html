@@ -11,6 +11,7 @@
   <button data-tab="projects" class="active" aria-current="page"><span aria-hidden="true">▦</span>项目</button>
   <button data-tab="search"><span aria-hidden="true">⌕</span>查找资料</button>
   <button data-tab="inbox"><span aria-hidden="true">▤</span>提醒</button>
+  <button data-tab="usage"><span aria-hidden="true">▥</span>用量</button>
   <button data-tab="settings"><span aria-hidden="true">⚙</span>设置</button>
  </nav>
  <div class="sidebar-footer"><span class="connection-dot" aria-hidden="true"></span><span id="mode">本机资料</span></div>
@@ -28,6 +29,11 @@
   <div id="answers"></div>
  </section>
  <section id="inbox" hidden aria-labelledby="inbox-title"><header class="page-heading"><div><h1 id="inbox-title">提醒</h1></div></header><div id="notification-list"></div></section>
+ <section id="usage" hidden aria-labelledby="usage-title">
+  <header class="page-heading"><div><h1 id="usage-title">用量</h1><p>看清插件返回了多少资料</p></div><select id="usage-days" aria-label="统计时间范围"><option value="1">今天</option><option value="7" selected>近 7 天</option><option value="30">近 30 天</option><option value="0">全部</option></select></header>
+  <p class="usage-boundary">此处统计插件用量，不是账户账单。WorkBuddy 积分和 Codex 剩余额度请在客户端查看。</p>
+  <div id="usage-content" aria-live="polite"></div>
+ </section>
  <section id="settings" hidden aria-labelledby="settings-title">
   <header class="page-heading"><div><h1 id="settings-title">设置</h1></div></header>
   <div class="settings-grid">

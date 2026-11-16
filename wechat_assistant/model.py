@@ -96,13 +96,18 @@ class Model:
             # Do not accidentally inherit the outer task's routing metadata.
             for key in ("CODEX_THREAD_ID", "CODEX_INTERNAL_ORIGINATOR_OVERRIDE"):
                 env.pop(key, None)
-            result = subprocess.run(command, input=prompt, text=True, encoding="utf-8", errors="replace",
-                                    capture_output=True, timeout=300, env=env,
-                                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-            if result.returncode or not answer_path.exists():
-                # CLI diagnostics can contain the prompt: keep them out of application logs/UI.
-                raise RuntimeError(f"Codex 分析失败（退出码 {result.returncode}）；请检查 codex login status、网络或额度。")
-            return json.loads(answer_path.read_text("utf-8"))
+            failed=True
+            try:
+                result = subprocess.run(command, input=prompt, text=True, encoding="utf-8", errors="replace",
+                                        capture_output=True, timeout=300, env=env,
+                                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+                if result.returncode or not answer_path.exists():
+                    # CLI diagnostics can contain the prompt: keep them out of application logs/UI.
+                    raise RuntimeError(f"Codex 分析失败（退出码 {result.returncode}）；请检查 codex login status、网络或额度。")
+                answer=json.loads(answer_path.read_text("utf-8"));failed=False
+                return answer
+            finally:
+                self._record_usage('codex',prompt,len(images),failed)
 
     def _api(self, prompt, schema, images=()):
         base = self.config["api_base"].rstrip("/")
@@ -116,6 +121,22 @@ class Model:
         key = os.environ.get(self.config["api_key_env"], "")
         request = urllib.request.Request(base + "/chat/completions", json.dumps(body).encode(),
                                          {"Content-Type": "application/json", "Authorization": "Bearer " + key})
-        with urllib.request.urlopen(request, timeout=300) as response:
-            result = json.load(response)
-        return json.loads(result["choices"][0]["message"]["content"])
+        result={};failed=True
+        try:
+            with urllib.request.urlopen(request, timeout=300) as response:
+                result = json.load(response)
+            answer=json.loads(result["choices"][0]["message"]["content"]);failed=False
+            return answer
+        finally:
+            self._record_usage('api',prompt,len(images),failed,result.get('usage') if isinstance(result,dict) else None)
+
+    def _record_usage(self,source,prompt,images,failed,usage=None):
+        from .usage import record,text_size,reported_usage
+        from .store import Store
+        import logging
+        try:
+            chars,estimate=text_size(prompt)
+            record(Store(self.root),source,'model_call',calls=1,errors=int(failed),input_chars=chars,
+                   input_estimate=estimate,images=images,**reported_usage(usage))
+        except Exception:
+            logging.getLogger(__name__).warning('本次模型用量未能记录；业务结果不受影响。')

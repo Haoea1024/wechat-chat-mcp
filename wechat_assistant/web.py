@@ -51,6 +51,9 @@ def serve(service, port):
                     return self.send(runtime)
                 if route.path == "/api/state":
                     return self.send(service.snapshot())
+                if route.path == '/api/usage':
+                    from .usage import summary
+                    return self.send(summary(service.store,int(query.get('days',['7'])[0])))
                 if route.path == "/api/message":
                     from .retrieval import public_message
                     return self.send([public_message(service.store,m) for m in service.store.evidence([int(query["id"][0])])])
