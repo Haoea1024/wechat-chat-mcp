@@ -7,7 +7,7 @@ from .discovery import scope, text_clause
 from .knowledge import review_source
 
 
-def public_message(store,message,include_attachment_text=True):
+def public_message(store,message,include_attachment_text=False):
     result={k:message[k] for k in ('id','chat_id','chat_name','sender','ts','kind','text')}
     sender=json.loads(message.get('locator') or '{}').get('sender_username')
     result['is_self']=bool(sender and sender==store.get('identity',{}).get('username'))
@@ -118,12 +118,12 @@ def search_messages(store,query='',chat_ids=None,project=None,keywords=None,days
         note='按正文和已缓存附件检索；text_truncated=true 时用 get_messages 读全文。可按消息时间用 read_conversation 的 since_ts/until_ts 补读上下文。')
 
 
-def attachments(store,project=None,offset=0,limit=40):
+def attachments(store,project=None,offset=0,limit=40,max_chars=12000):
     limit=max(1,min(limit,100));offset=max(0,offset)
     sql="SELECT * FROM messages WHERE (kind IN ('图片','语音') OR (kind='链接/文件' AND raw LIKE '%<type>6</type>%'))";params=[]
     if project:
         p=resolve_project(store,project)
         sql+=' AND chat_id IN (SELECT chat_id FROM project_chats WHERE project_id=? AND excluded=0)';params.append(p['id'])
     rows=store.rows(sql+' ORDER BY ts DESC,id DESC LIMIT ? OFFSET ?',(*params,max(1,min(limit,100))+1,max(0,offset)))
-    has_more=len(rows)>limit
-    return dict(messages=[public_message(store,m) for m in rows[:limit]],next_offset=offset+limit if has_more else None)
+    messages=bounded_messages(store,rows[:limit],max_chars)
+    return dict(messages=messages,next_offset=offset+len(messages) if len(rows)>len(messages) else None)

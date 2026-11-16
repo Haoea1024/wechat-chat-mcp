@@ -80,9 +80,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client codex
 ```text
 我提出微信查询任务后，使用 wechat-chat MCP：
 
-1. 先查看 project_status，说明数据最近同步时间。
+1. 每个新问题先查看 project_status，取得新的 query_id，说明数据最近同步时间。
+   本次消息检索传同一 query_id；already_returned/text_omitted 表示原文在本次已经完整返回，可复用。
+   不能跨问题/对话沿用；原文已不在上下文或需要核对细节时用 get_messages(force=true) 重读。
    已配置项目先 get_project_brief 恢复资料，检查反馈变化、待复核条目和未覆盖消息。
-   用 read_project_updates 补新增/变更，仍可通过原始检索查漏；没有资料或范围不清时继续下面的会话发现。
+   用 read_project_updates 补新增/变更，仍可通过原始检索查漏；已有范围够用时不重复发现全部群聊，没有资料或范围不清时继续下面的会话发现。
 2. 先 discover_chats 按名称找群；已有项目传 project，临时主题传 query 和 keywords。
    简述准备查看的范围，我可以补充遗漏群和私聊，不必每次等待确认才继续。
 3. 对强相关群调用 find_private_chats，用成员关系发现候选私聊。

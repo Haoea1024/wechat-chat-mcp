@@ -58,6 +58,10 @@ CREATE TABLE IF NOT EXISTS usage_daily (
  images INTEGER NOT NULL DEFAULT 0,reported_calls INTEGER NOT NULL DEFAULT 0,
  input_tokens INTEGER NOT NULL DEFAULT 0,output_tokens INTEGER NOT NULL DEFAULT 0,
  PRIMARY KEY(day,source,operation));
+CREATE TABLE IF NOT EXISTS query_sessions (id TEXT PRIMARY KEY,created INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS query_reads (
+ query_id TEXT NOT NULL,message_id INTEGER NOT NULL,digest TEXT NOT NULL,media_digest TEXT NOT NULL,
+ PRIMARY KEY(query_id,message_id));
 """
 
 
