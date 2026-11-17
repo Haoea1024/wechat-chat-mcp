@@ -174,7 +174,7 @@ Codex 已有本机使用验证；WorkBuddy 5.9.3 已验证原生工具可见及�
 
 `relevance=membership_only` 只表示同群线索；`keyword_match` 表示私聊消息或缓存附件命中词语，仍需要阅读证据判断。成员关系不会自动保存为项目关联。用户明确确认后再用 `set_project_chats(project=项目, chat_ids=[会话ID])` 保存；`excluded=True` 排除误关联，`False` 恢复。
 
-旧 `search_chat` 继续保留每次最多60条、无分页的兼容行为；新流程使用 `search_messages`。
+旧 `search_chat` 继续保留每次最多60条、无分页的兼容行为；新流程使用 `search_messages`。旧入口仅搜索消息正文，不搜索附件缓存，没有默认 30 天限制；`project_id` 仅限定已关联且未排除的会话。它沿用 SQL LIKE，`%` 和 `_` 会作为通配符；新入口按字面片段匹配，并使用项目别名、天数和分页参数。两者不能仅替换工具名就当作等价调用。
 
 ### 已配置项目：按范围分页
 
@@ -191,7 +191,7 @@ Codex 已有本机使用验证；WorkBuddy 5.9.3 已验证原生工具可见及�
 
 `search_messages` 使用同样的消息长度预算，按顶层 `next_offset` 继续。普通分页的单条正文最多2000字符，`text_truncated=True` 表示需用 `get_messages` 补读该条全文；全文和附件工具属于显式补读，不受普通分页的总字符预算约束。长度预算提前结束一页时，游标按实际返回数推进，不能自行把 offset 加上 limit。
 
-`read_conversation` 按 `next_before_id` 翻页，支持包含端点的 Unix 秒参数 `since_ts` / `until_ts`。例如以命中消息时间前后各半小时补读；每次续页保留相同时间范围。长期跟进优先使用下述资料覆盖与 `read_project_updates`，避免只按上次日期截断而漏掉迟到的旧消息；同秒消息也不能简单用“上次时间加一秒”跳过。
+`read_conversation` 按 `next_before_id` 翻页，支持包含端点的 Unix 秒参数 `since_ts` / `until_ts`。例如以命中消息时间前后各半小时补读；每次续页保留相同时间范围。长期跟进优先使用下述资料覆盖与 `read_project_updates`，避免只按上次日期截断而漏掉已入库的迟到旧消息；同秒消息也不能简单用“上次时间加一秒”跳过。微信源数据的采集边界见[同步范围与变更检测](REFERENCE.md#同步范围与变更检测)。
 
 先查询最近进展，出现旧方案、矛盾或未完成事项时再扩大时间范围。证据够回答问题就停止；需要完整审阅时才继续读完所需范围。
 

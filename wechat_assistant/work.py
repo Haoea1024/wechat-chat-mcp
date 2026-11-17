@@ -96,5 +96,5 @@ def resolve_project(store, name):
         ids=exact or {c['id'] for c in categories if query and any(query in s.lower().replace(' ','') or s.lower().replace(' ','') in query for s in [c['name'],*c.get('aliases',[])] if s.strip())}
         matches=[p for p in projects if p['id'] in ids or query==p['name'].lower().replace(' ','')]
     if len(matches)!=1:
-        raise ValueError('请先用 list_projects 查看项目；也可用 configure_project 添加项目，或直接 search_chat 搜索聊天。')
+        raise ValueError('请先用 list_projects 查看项目；也可用 configure_project 添加项目，或用 discover_chats 发现会话、search_messages 搜索聊天。')
     return matches[0]

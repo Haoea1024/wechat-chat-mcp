@@ -33,8 +33,8 @@ async function showMedia(r){if(!r)return;showDialog('附件内容 · #'+r.messag
 }
 function feedbackDialog(p=null,m=null){showDialog(p?'补充或纠正 · '+p.name:'我的反馈');const body=$('#dialog-body');
  const scope=el('select');const all=el('option','全部工作 / 长期要求');all.value='';scope.append(all);for(const project of state.projects){const option=el('option',project.name);option.value=project.id;scope.append(option);}scope.value=p?.id||'';
- const text=el('textarea');text.placeholder='补充线下进展，或纠正不准确的理解';text.setAttribute('aria-label','反馈内容');scope.setAttribute('aria-label','反馈所属项目');chat.setAttribute('aria-label','反馈所属聊天');
- const chat=el('select');const none=el('option','不限聊天');none.value='';chat.append(none);for(const c of state.chats){const o=el('option',c.name);o.value=c.id;chat.append(o);}chat.value=m?.chat_id||'';
+ const text=el('textarea');text.placeholder='补充线下进展，或纠正不准确的理解';text.setAttribute('aria-label','反馈内容');scope.setAttribute('aria-label','反馈所属项目');
+ const chat=el('select');chat.setAttribute('aria-label','反馈所属聊天');const none=el('option','不限聊天');none.value='';chat.append(none);for(const c of state.chats){const o=el('option',c.name);o.value=c.id;chat.append(o);}chat.value=m?.chat_id||'';
  body.append(scope,chat,text,button('保存反馈',async()=>{await mutate('feedback',{text:text.value,project_id:Number(scope.value)||null,chat_id:chat.value||null,message_id:m?.id||null});notice('已记住，下一次在客户端查询时会带上你的反馈。');feedbackDialog(p,m);},'primary'));
  body.append(el('h3','有效反馈'));for(const f of state.feedback.filter(f=>!p||!f.project_id||f.project_id===p.id)){const row=el('div',undefined,'item');const label=state.projects.find(p=>p.id===f.project_id)?.name||'全部工作';row.append(el('small',label+' · '+date(f.created)+(f.message_id?' · 消息 #'+f.message_id:'')),el('p',f.text,'text'),button('撤销这条反馈',async()=>{await mutate('feedback',{revoke:f.id});feedbackDialog(p,m);}));body.append(row);}
 }
