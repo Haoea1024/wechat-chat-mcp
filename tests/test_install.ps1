@@ -41,6 +41,11 @@ try {
     Assert-True ($global:wechatTestCalls.Count -eq 3) 'KeepModelProvider unexpectedly changed model settings'
     Assert-True (($global:wechatTestCalls[1] -join '|') -eq 'register-client|codex|--config-path|C:\test client\config.toml') 'Codex registration arguments changed'
     Assert-True (($global:wechatTestCalls[2] -join '|') -eq 'refresh-web') 'Running web backend was not checked'
+    $global:wechatTestCalls = @()
+    & $installer -Client antigravity -SkipSync -SkipMedia -ConfigPath 'C:\test client\mcp_config.json'
+    Assert-True ($global:wechatTestCalls.Count -eq 4) 'Antigravity SkipSync/SkipMedia should run pip, use-client, register, refresh-web'
+    Assert-True (($global:wechatTestCalls[1] -join '|') -eq 'use-client') 'Antigravity did not switch to current-client mode'
+    Assert-True (($global:wechatTestCalls[2] -join '|') -eq 'register-client|antigravity|--config-path|C:\test client\mcp_config.json') 'Antigravity registration arguments changed'
     $global:wechatTestFailStage = 'refresh-web'
     $failed = $false
     try { & $installer -Client workbuddy -SkipSync -SkipMedia } catch { $failed = $true }

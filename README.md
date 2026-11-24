@@ -12,7 +12,7 @@
 
 ## 直接发给智能体安装
 
-在能执行**本机 Windows 命令**的 WorkBuddy 或 Codex 中发送：
+在能执行**本机 Windows 命令**的 WorkBuddy、Codex 或 Antigravity 中发送：
 
 > 请安装 https://github.com/Haoea1024/wechat-chat-mcp 并接入我当前使用的客户端。按照仓库 docs/INSTALL.md 完成安装和验证。
 
@@ -20,6 +20,7 @@
 
 - **WorkBuddy 5.9.3**：2026-11-14 使用者验证当时的 20 个原生工具可见、`project_status` 原生调用成功；此后新增了用量统计工具，具体项目检索和媒体读取仍待逐项验证。
 - **Codex**：提供同一安装脚本的自动注册入口；旧版已有本机使用验证，新版客户端读图需验收。DSH 暂不作为本轮适配目标。
+- **Antigravity**：提供同一安装脚本的 `-Client antigravity` 自动注册入口，在 `~/.gemini/config/plugins/wechat-chat/` 生成完整的 Antigravity 插件包（含 `mcp_config.json`、使用约定 `rules/AGENTS.md` 与 `skills/wechat-chat/SKILL.md`），统一由插件开关管理生命周期。
 
 WorkBuddy 5.9.3 的确认入口是 **「专家·技能·连接器 → 连接器 → 自定义连接器」**，首次连接按提示点击“信任”。安装程序完成配置写入后，还需在当前客户端通过原生工具调用验证；重启不代替信任。命令行入口只作授权后的辅助方式。只发链接可能被理解为阅读，建议带上“安装并接入当前客户端”。
 

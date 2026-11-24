@@ -167,18 +167,18 @@ def mcp(root):
 
 
 @main.command('register-client')
-@click.argument('client', type=click.Choice(['workbuddy', 'codex', 'dsh']))
-@click.option('--config-path', type=click.Path(), help='WorkBuddy mcp.json 或 Codex config.toml 的实际路径。')
+@click.argument('client', type=click.Choice(['workbuddy', 'codex', 'antigravity', 'dsh']))
+@click.option('--config-path', type=click.Path(), help='WorkBuddy mcp.json、Codex config.toml 或 Antigravity mcp_config.json 的实际路径。')
 @click.option('--profile-dir', type=click.Path(exists=True), help='DSH 当前 profile 目录，不自动猜测。')
 @click.pass_obj
 def register_client(root, client, config_path, profile_dir):
     """检查 MCP 后注册到指定客户端，备份原配置并保留其他服务。"""
-    from .setup_client import server_spec, check_connection, register_workbuddy, register_codex, register_dsh, media_readiness
+    from .setup_client import server_spec, check_connection, register_workbuddy, register_codex, register_antigravity, register_dsh, media_readiness
     try:
         if client == 'dsh' and (not profile_dir or config_path):
             raise ValueError('DSH 需要 --profile-dir 指向当前 profile，不能使用 --config-path。')
-        if client in {'workbuddy','codex'} and profile_dir:
-            raise ValueError('WorkBuddy / Codex 不使用 --profile-dir。')
+        if client in {'workbuddy', 'codex', 'antigravity'} and profile_dir:
+            raise ValueError('WorkBuddy / Codex / Antigravity 不使用 --profile-dir。')
         spec = server_spec(root)
         checks = check_connection(spec)
         if client == 'workbuddy':
@@ -186,6 +186,9 @@ def register_client(root, client, config_path, profile_dir):
         elif client == 'codex':
             path = Path(config_path).resolve() if config_path else Path(os.environ.get('CODEX_HOME', Path.home() / '.codex')) / 'config.toml'
             result = register_codex(path, spec)
+        elif client == 'antigravity':
+            path = Path(config_path).resolve() if config_path else Path(os.environ.get('ANTIGRAVITY_CONFIG_DIR', Path.home() / '.gemini' / 'config')) / 'mcp_config.json'
+            result = register_antigravity(path, spec)
         else:
             result = register_dsh(Path(profile_dir).resolve(), spec)
         result.update(checks)

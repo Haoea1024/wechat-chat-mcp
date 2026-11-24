@@ -251,6 +251,7 @@ MCP 读取已经同步的记录，不会因为一次查询就自动把手机端�
 | 其他 Windows 微信版本 | 未形成完整兼容矩阵；不能承诺所有 4.x 版本通用 |
 | macOS / Linux | 上游含对应平台代码，但本项目完整流程尚未验证；新版图片密钥定位及部分附加功能依赖 Windows |
 | Codex | 已实测 stdio MCP 调用及本机 Codex CLI 模型入口 |
+| Antigravity | 已提供 `install.ps1 -Client antigravity` 与 `register-client antigravity`，自动注册全局 `mcp_config.json` 与 `plugins/wechat-chat` 插件包（含 MCP、Rules 与 Skill） |
 | WorkBuddy 5.9.3 | 2026-11-14 使用者验证当时的 20 个原生工具可见和 project_status 调用；此后新增用量统计工具，具体检索、媒体读取仍待验证 |
 | DeepSeek Harness（DSH） | 已提供安装与注册脚本，真实客户端验收待完成 |
 | 其他支持本地 stdio MCP 的智能体 | 协议上可接入，尚未逐客户端实测 |

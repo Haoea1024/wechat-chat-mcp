@@ -10,7 +10,7 @@ function button(text,fn,cls='small'){const b=el('button',text,cls);b.onclick=()=
 function date(ts){return ts?new Date((ts+8*3600)*1000).toISOString().slice(0,19).replace('T',' '):'尚未运行';}
 function empty(parent,text){parent.append(el('div',text,'empty'));}
 async function mutate(route,body){await api(route,body);await refresh();}
-function handoff(r){showDialog('在当前客户端更新');const b=$('#dialog-body'),text=el('textarea');text.value=r.prompt;text.readOnly=true;b.append(el('p',r.note),text,button('复制到对话',async()=>{await navigator.clipboard.writeText(r.prompt);notice('已复制，请粘贴到 WorkBuddy / Codex 对话。');}));}
+function handoff(r){showDialog('在当前客户端更新');const b=$('#dialog-body'),text=el('textarea');text.value=r.prompt;text.readOnly=true;b.append(el('p',r.note),text,button('复制到对话',async()=>{await navigator.clipboard.writeText(r.prompt);notice('已复制，请粘贴到 WorkBuddy / Codex / Antigravity 对话。');}));}
 async function job(action,body={}){const r=await api('job',{action,...body});if(r.handoff){handoff(r);return;}notice('已加入后台任务，结果会自动显示。');}
 function refs(ids){
  const values=[...new Set(ids||[])],box=el('details',undefined,'source-details');
@@ -65,7 +65,7 @@ function projectDetail(p){
    for(const entry of rows){const row=el('div',undefined,'brief-entry');if(entry.basis==='inferred')row.append(el('span','推测','badge warning'));else if(entry.basis==='open'&&key!=='question')row.append(el('span','待核实','badge warning'));row.append(el('p',entry.text,'text'),entrySources(entry));group.append(row);}body.append(group);
   }
   const scope=el('details',undefined,'brief-meta');scope.append(el('summary','阅读范围与版本'),el('p',p.brief.scope_note||'未记录阅读范围。','text'),el('p',`版本 ${p.brief.version}。资料截至保存时，后续变化需在对话中核对。`,'muted'));body.append(scope);
- }else if(client){body.append(el('p','还没有整理过这个项目。可在 WorkBuddy / Codex 中查询后保存资料。','muted'));}
+ }else if(client){body.append(el('p','还没有整理过这个项目。可在 WorkBuddy / Codex / Antigravity 中查询后保存资料。','muted'));}
  if(p.summary&&(!client||(p.evidence||[]).length||p.items.length)){const legacy=client?el('details'):el('section');legacy.append(el(client?'summary':'h3',client?'此前的后台摘要':'进展'),el('p',p.summary,'text'),refs(p.evidence));body.append(legacy);}
  const chats=(p.overview?.conversations||[]).filter(chat=>!p.chats.some(c=>c.chat_id===chat.chat_id&&c.excluded));
  if(chats.length){const threads=el('details');threads.append(el('summary',client?'此前的聊天概览':'相关聊天'));for(const chat of chats){const row=el('div',undefined,'item'),linked=p.chats.find(c=>c.chat_id===chat.chat_id);row.append(el('h3',linked?.name||'相关会话'),el('p',chat.summary,'text'),refs(chat.evidence));threads.append(row);}body.append(threads);}

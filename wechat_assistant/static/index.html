@@ -40,7 +40,7 @@
    <div><div class="card"><h2>微信同步</h2><p id="sync-summary" class="muted"></p><button id="sync">立即同步</button><details><summary>补充历史记录</summary><label for="backfill-days">导入最近多少天<input id="backfill-days" type="number" min="1" max="3650" value="90"></label><button id="backfill">开始导入</button></details></div>
    <details class="card diagnostics"><summary>运行诊断</summary><pre id="runtime"></pre></details></div>
    <form id="settings-form" class="card"><h2>整理方式</h2>
-    <label>由谁整理项目资料<select name="provider"><option value="client">当前 WorkBuddy / Codex 对话</option><option value="codex">独立 Codex CLI</option><option value="api">兼容 API</option></select></label>
+    <label>由谁整理项目资料<select name="provider"><option value="client">当前 WorkBuddy / Codex / Antigravity 对话</option><option value="codex">独立 Codex CLI</option><option value="api">兼容 API</option></select></label>
     <label>模型名称<input name="model" placeholder="使用默认模型时留空"></label><label>Codex 程序路径<input name="codex_command"></label><label>API 地址<input name="api_base" placeholder="https://example.com/v1"></label><label>密钥环境变量<input name="api_key_env"></label>
     <label class="checkbox-label"><input name="background_analysis" type="checkbox"> 自动整理项目（会使用模型额度）</label>
     <details><summary>同步频率与提醒</summary><label>同步间隔（秒）<input name="poll_seconds" type="number" min="15" max="3600"></label><label>分析间隔（秒）<input name="analysis_seconds" type="number" min="30" max="86400"></label><label>每批消息数<input name="batch_size" type="number" min="10" max="500"></label><label>提醒时间（北京时间）<input name="schedule" placeholder="08:00, 12:00, 18:00"></label><label class="checkbox-label"><input name="notifications" type="checkbox"> 桌面提醒</label><button type="button" id="test-notify">测试提醒</button></details>

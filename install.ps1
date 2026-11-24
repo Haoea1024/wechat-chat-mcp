@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('workbuddy', 'codex', 'dsh')][string]$Client,
+    [ValidateSet('workbuddy', 'codex', 'antigravity', 'dsh')][string]$Client,
     [string]$Python,
     [string]$DbDir,
     [string]$DataDir,
@@ -16,7 +16,7 @@ if ([System.Environment]::OSVersion.Platform -ne 'Win32NT') { throw 'This instal
 if ($Client -eq 'dsh' -and -not $ProfileDir) {
     throw 'DSH requires -ProfileDir pointing to the active, initialized profile.'
 }
-if ($Client -in @('workbuddy', 'codex') -and $ProfileDir) { throw 'WorkBuddy/Codex does not use -ProfileDir.' }
+if ($Client -in @('workbuddy', 'codex', 'antigravity') -and $ProfileDir) { throw 'WorkBuddy/Codex/Antigravity does not use -ProfileDir.' }
 if ($Client -eq 'dsh' -and $ConfigPath) { throw 'DSH does not use -ConfigPath.' }
 if (-not (Test-Path -LiteralPath '.venv\Scripts\python.exe')) {
     if ($Python) { $pythonCommand = $Python; $pythonPrefix = @() }
@@ -32,7 +32,7 @@ if (-not $Client) {
 }
 $commonArgs = @()
 if ($DataDir) { $commonArgs += @('--data-dir', $DataDir) }
-if ($Client -in @('workbuddy', 'codex') -and -not $KeepModelProvider) {
+if ($Client -in @('workbuddy', 'codex', 'antigravity') -and -not $KeepModelProvider) {
     Invoke-WeChatNative '.venv\Scripts\wechat-assistant.exe' ($commonArgs + @('use-client')) 'Could not switch to current-client mode.'
 }
 if (-not $SkipMedia) {

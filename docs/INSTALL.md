@@ -51,6 +51,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client codex
 
 自动合并 `CODEX_HOME/config.toml`（未设时为 `~/.codex/config.toml`），保留其他服务、注释和启用状态，备份原配置。自定义实际配置位置使用 `-ConfigPath`。设置启动超时 60 秒、工具超时 900 秒；不会为了注册或读图额外安装 Codex CLI。配置字段依据 [Codex 官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。已有同名服务复用，不另建一份。
 
+### Antigravity
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client antigravity
+```
+
+在 `~/.gemini/config/plugins/wechat-chat/`（或 `ANTIGRAVITY_CONFIG_DIR/plugins/wechat-chat/`）生成完整的 Antigravity 插件包（含 `plugin.json`、`mcp_config.json`、`rules/AGENTS.md`、`skills/wechat-chat/SKILL.md` 和 `assets/logo.svg`），并在全局 `mcp_config.json` 存在旧重复条目时自动清理，统一由插件包管理 MCP 服务与技能生命周期。可在 Antigravity 的 `[wechat-chat](customization://wechat-chat)` 页面或 **Additional Options (...) > MCP Servers** 查看与管理。
+
 `install.ps1` 不带 Client 时只安装依赖；注册入口本身不准备语音模型。
 
 ### 通用行为与恢复

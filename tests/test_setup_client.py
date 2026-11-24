@@ -8,7 +8,7 @@ from click.testing import CliRunner
 from ruamel.yaml import YAML
 
 from wechat_assistant.cli import main
-from wechat_assistant.setup_client import register_workbuddy, register_dsh, write_config, server_spec, check_connection, workbuddy_activation
+from wechat_assistant.setup_client import register_workbuddy, register_antigravity, register_dsh, write_config, server_spec, check_connection, workbuddy_activation
 
 
 class ClientSetupTests(unittest.TestCase):
@@ -120,6 +120,48 @@ class ClientSetupTests(unittest.TestCase):
         self.assertEqual(result['project_status'], 'ok')
         self.assertGreater(result['tool_count'], 10)
         self.assertIn('待', result['client_session'])
+
+    def test_antigravity_handles_empty_file_preserves_other_servers_and_writes_plugin_bundle(self):
+        config_dir = self.root / 'config'
+        config_dir.mkdir()
+        mcp_path = config_dir / 'mcp_config.json'
+        mcp_path.write_bytes(b'')
+        result = register_antigravity(mcp_path, self.spec)
+        self.assertEqual(result['client'], 'antigravity')
+        self.assertEqual(result['plugin_link'], 'customization://wechat-chat')
+        plugin_dir = Path(result['plugin_dir'])
+        plugin_mcp = plugin_dir / 'mcp_config.json'
+        self.assertTrue((plugin_dir / 'plugin.json').is_file())
+        self.assertTrue(plugin_mcp.is_file())
+        self.assertTrue((plugin_dir / 'rules' / 'AGENTS.md').is_file())
+        self.assertTrue((plugin_dir / 'skills' / 'wechat-chat' / 'SKILL.md').is_file())
+        self.assertTrue((plugin_dir / 'assets' / 'logo.svg').is_file())
+        manifest = json.loads((plugin_dir / 'plugin.json').read_text('utf-8'))
+        self.assertEqual(manifest['name'], 'wechat-chat')
+        self.assertEqual(len(manifest['suggestedPrompts']), 3)
+        bundle_mcp = json.loads(plugin_mcp.read_text('utf-8'))
+        self.assertEqual(bundle_mcp['mcpServers']['wechat-chat']['command'], self.spec['command'])
+        self.assertEqual(bundle_mcp['mcpServers']['wechat-chat']['args'], self.spec['args'])
+        # Idempotent rerun produces no new backup
+        self.assertIsNone(register_antigravity(mcp_path, self.spec)['backup'])
+        # Preserves other servers and existing legacy name inside plugin mcp_config.json
+        existing = json.dumps({'mcpServers': {'other': {'command': 'other'},
+            'wechat-project-assistant': {'command': 'old/wechat-assistant.exe', 'env': {'KEEP': 'yes'}, 'disabled': False}}}).encode('utf-8')
+        plugin_mcp.write_bytes(existing)
+        res2 = register_antigravity(mcp_path, self.spec)
+        self.assertEqual(Path(res2['backup']).read_bytes(), existing)
+        merged = json.loads(plugin_mcp.read_text('utf-8'))
+        self.assertEqual(merged['mcpServers']['other'], {'command': 'other'})
+        self.assertEqual(merged['mcpServers']['wechat-project-assistant']['env']['KEEP'], 'yes')
+        self.assertNotIn('wechat-chat', merged['mcpServers'])
+
+    def test_invalid_and_conflicting_antigravity_files_are_unchanged(self):
+        for contents in ('{bad', '[]', '{"mcpServers": []}', '{"mcpServers":{"wechat-chat":{"command":"unrelated"}}}'):
+            path = self.root / 'mcp_config.json'
+            path.write_text(contents, 'utf-8')
+            with self.assertRaises(ValueError):
+                register_antigravity(path, self.spec)
+            self.assertEqual(path.read_text('utf-8'), contents)
 
 
 if __name__ == '__main__':

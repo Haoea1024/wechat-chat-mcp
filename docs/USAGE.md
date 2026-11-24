@@ -71,7 +71,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client codex
 
 应当能看到智能体实际调用工具并返回本机数据。没有搜索结果也可能是关键词不匹配；先用自己确认存在的短语验证。
 
-本项目的 MCP 服务不需要 OAuth 登录，也不需要把微信账号密码填进 Codex。它使用已经在本机初始化的微信读取配置。
+本项目的 MCP 服务不需要 OAuth 登录，也不需要把微信账号密码填进 Codex 或 Antigravity。它使用已经在本机初始化的微信读取配置。
+
+## 2B. 接入 Antigravity
+
+推荐由当前 Antigravity 在仓库目录运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client antigravity
+```
+
+已有微信连接与同步可加 `-SkipSync`，仅补注册可执行 `.\.venv\Scripts\wechat-assistant.exe register-client antigravity`。脚本会在 `~/.gemini/config/plugins/wechat-chat/` 生成完整的 Antigravity 插件包（包含 `plugin.json`、`mcp_config.json`、`rules/AGENTS.md`、`skills/wechat-chat/SKILL.md` 和 `assets/logo.svg`），并在全局 `mcp_config.json` 存在重复的微信服务条目时自动清理（保留原备份），使 MCP 服务、规则与技能作为同一个插件单元一起启用或停用。
+
+注册完成后，Antigravity 会自动发现 `wechat-chat` 插件与技能；可在 Customizations 页面（`customization://wechat-chat`）或 **Additional Options (...) > MCP Servers** 查看状态。若当前正在进行的对话尚未刷新原生 MCP 工具列表，智能体可在已获授权时通过 `.\.venv\Scripts\wechat-assistant.exe call-tool` 桥接调用同一套协议。读取微信图片附件时，若工具返回的 `ImageContent` 未直接在面板展示，Antigravity 可直接使用内置 `read_file` 工具读取 `images[].original_path` 查看原图。
 
 ### 为智能体提供使用约定
 
