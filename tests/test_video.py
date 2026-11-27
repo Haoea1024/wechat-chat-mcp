@@ -325,7 +325,9 @@ class VideoTests(unittest.TestCase):
     def test_real_stdio_mcp_delivers_video_frames_and_transcript(self):
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
-        mp4 = _make_video(self.root / 'stdio_clip.mp4', duration=2, color='green', audio=False)
+        # Must include an audio track so the real stdio MCP server exercises numpy + WAV decoding
+        # inside the running AnyIO event loop (regression check for Windows numpy DLL deadlock).
+        mp4 = _make_video(self.root / 'stdio_clip.mp4', duration=2, color='green', audio=True)
         mid = self._add_video_message()
         copy_attachment(self.store, self.store.evidence([mid])[0], mp4, 'original_video')
 
@@ -334,13 +336,16 @@ class VideoTests(unittest.TestCase):
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
-                    result = await session.call_tool('read_attachment', {'message_id': mid})
+                    result = await asyncio.wait_for(session.call_tool('read_attachment', {'message_id': mid}), timeout=30)
                     self.assertFalse(result.isError, str(result))
                     self.assertEqual('text', result.content[0].type)
                     self.assertTrue(any(c.type == 'image' for c in result.content))
                     payload = json.loads(result.content[0].text)
                     self.assertEqual('prepared', payload['status'])
                     self.assertTrue(payload['detail']['video_downloaded'])
+                    self.assertTrue(payload['detail']['has_audio'])
+                    self.assertTrue(payload['detail']['audio_paths'])
+                    self.assertTrue(Path(payload['detail']['audio_paths'][0]).is_file())
                     self.assertIn('attachment_receipt', payload)
 
         asyncio.run(run())

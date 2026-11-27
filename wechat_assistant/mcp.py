@@ -13,7 +13,17 @@ PROJECT_QUERY_COMPLETION = (
 SAVE_HINT = '有新增结论或已读范围时，答复前save_project_brief；尊重不保存要求，无变化不重复写。'
 
 
+def _preload_native_libs():
+    # On Windows (Python 3.14 + NumPy 2.x OpenBLAS), lazily importing numpy
+    # after AnyIO starts stdio worker threads deadlocks inside DLL loading.
+    try:
+        import numpy  # noqa: F401
+    except ImportError:
+        pass
+
+
 def create_server(root=None):
+    _preload_native_libs()
     try:
         from mcp.server.fastmcp import FastMCP
         from mcp.types import CallToolResult

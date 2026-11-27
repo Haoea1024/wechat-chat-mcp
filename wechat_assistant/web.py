@@ -9,6 +9,10 @@ from urllib.parse import parse_qs, urlparse
 
 
 def serve(service, port):
+    try:
+        import numpy  # noqa: F401
+    except ImportError:
+        pass
     token = secrets.token_urlsafe(24)
     static = Path(__file__).parent / "static"
     from .web_runtime import APP, fingerprint

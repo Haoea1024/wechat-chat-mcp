@@ -24,7 +24,8 @@ def _ffmpeg():
 
 def _run_ffmpeg(args, timeout=60):
     return subprocess.run(
-        [_ffmpeg(), *args],
+        [_ffmpeg(), '-nostdin', *args],
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         timeout=timeout,
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
@@ -124,6 +125,7 @@ def read_video(path, folder, vision, transcribe=None, start=0, count=1, force=Fa
         raise ValueError(f'start 超出视频片段范围（共 {total} 段）。')
     parts = []
     frame_timestamps = []
+    audio_paths = []
     audio_errors = []
     for i in range(start, min(start + count, total)):
         seg_start = i * segment_seconds
@@ -136,12 +138,16 @@ def read_video(path, folder, vision, transcribe=None, start=0, count=1, force=Fa
         if meta['has_audio']:
             if transcribe is not None:
                 cache_file = folder / f'transcript-{i}.json'
+                wav_target = folder / f'audio-{i}.wav'
                 if not force and cache_file.is_file():
                     cached = json.loads(cache_file.read_text('utf-8'))
                     lines.append('[语音转写]\n' + cached['text'])
+                    if wav_target.is_file():
+                        audio_paths.append(str(wav_target))
                 else:
-                    wav = extract_audio_wav(path, seg_start, seg_dur, folder / f'audio-{i}.wav', force=force)
+                    wav = extract_audio_wav(path, seg_start, seg_dur, wav_target, force=force)
                     if wav is not None:
+                        audio_paths.append(str(wav))
                         try:
                             transcript_text, _ = transcribe(wav, offset_sec=seg_start)
                             cache_file.write_text(json.dumps({'text': transcript_text}, ensure_ascii=False), 'utf-8')
@@ -188,6 +194,8 @@ def read_video(path, folder, vision, transcribe=None, start=0, count=1, force=Fa
         segment_seconds=segment_seconds,
         frame_timestamps=frame_timestamps,
     )
+    if audio_paths:
+        result['audio_paths'] = audio_paths
     if audio_errors:
         result['audio_error'] = audio_errors[0]
     return result
