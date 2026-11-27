@@ -64,7 +64,8 @@ def record_attachment_receipt(store,message,result,start=0,member=None):
     record=rows[0];detail=json.loads(record['detail'])
     if detail.get('archive_members_only') and not member:return result
     parts=detail.get('members',{}).get(member,{}) if member else detail
-    indices=None if 'parts' not in parts else [i for i in range(start,min(start+5,parts.get('total_units',0))) if str(i) in parts['parts']]
+    step=parts.get('page_size',5)
+    indices=None if 'parts' not in parts else [i for i in range(start,min(start+step,parts.get('total_units',0))) if str(i) in parts['parts']]
     coverage=dict(member=member,indices=indices,total_units=parts.get('total_units'),
                   note='仅表示本次返回的页/段；下标从0开始，不代表整份附件读完。')
     if indices==[] or not result.get('text'):return result
@@ -229,7 +230,7 @@ def get_brief(store,project,version=None,offset=0,limit=20):
         rows=store.rows('SELECT status,detail FROM media WHERE message_id=?',(mid,))
         backups=store.rows('SELECT name,path,sha256,quality,size,message_digest FROM attachment_backups WHERE message_id=?',(mid,))
         messages=store.evidence([mid])
-        if rows or backups or (messages and messages[0]['kind'] in {'图片','语音','链接/文件'}):
+        if rows or backups or (messages and messages[0]['kind'] in {'图片','语音','视频','链接/文件'}):
             assets.append(dict(message_id=mid,reading_status=rows[0]['status'] if rows else 'not_read',
                 total_units=json.loads(rows[0]['detail']).get('total_units') if rows else None,
                 backups=[{k:v for k,v in b.items() if k!='message_digest'}|dict(matches_current_message=bool(messages and message_digest(messages[0])==b['message_digest'])) for b in backups]))

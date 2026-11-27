@@ -26,7 +26,7 @@ def public_message(store,message,include_attachment_text=False):
 
 
 def is_attachment(message):
-    if message['kind'] in {'图片','语音'}:return True
+    if message['kind'] in {'图片','语音','视频'}:return True
     return message['kind']=='链接/文件' and '<type>6</type>' in message['raw']
 
 
@@ -120,7 +120,7 @@ def search_messages(store,query='',chat_ids=None,project=None,keywords=None,days
 
 def attachments(store,project=None,offset=0,limit=40,max_chars=12000):
     limit=max(1,min(limit,100));offset=max(0,offset)
-    sql="SELECT * FROM messages WHERE (kind IN ('图片','语音') OR (kind='链接/文件' AND raw LIKE '%<type>6</type>%'))";params=[]
+    sql="SELECT * FROM messages WHERE (kind IN ('图片','语音','视频') OR (kind='链接/文件' AND raw LIKE '%<type>6</type>%'))";params=[]
     if project:
         p=resolve_project(store,project)
         sql+=' AND chat_id IN (SELECT chat_id FROM project_chats WHERE project_id=? AND excluded=0)';params.append(p['id'])

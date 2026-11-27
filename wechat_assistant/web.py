@@ -72,6 +72,7 @@ def serve(service, port):
                     rows=service.store.rows('SELECT path FROM media WHERE message_id=?',(int(query['id'][0]),))
                     if not rows or not rows[0]['path']:return self.send({'error':'附件尚未读取'},404)
                     file=Path(rows[0]['path'])
+                    if not file.is_file():return self.send({'error':'本地媒体文件不存在'},404)
                     return self.send(file.read_bytes(),content_type=mimetypes.guess_type(file.name)[0] or 'application/octet-stream')
                 self.send({"error": "页面不存在"}, 404)
             except (ValueError, KeyError) as exc:

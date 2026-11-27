@@ -25,7 +25,7 @@ def antigravity_bundle(spec):
         'suggestedPrompts': [
             '使用微信 MCP 的 project_status 查看最近同步时间和消息总数',
             '帮我查指定项目最近的微信群聊和成员私聊进展，并保存项目资料',
-            '读取这次微信讨论里的关键截图、语音和方案文件并核对结论',
+            '读取这次微信讨论里的关键截图、语音、视频和方案文件并核对结论',
         ],
     }
     rules = (
@@ -34,8 +34,8 @@ def antigravity_bundle(spec):
         '- 每个新的微信问题先调用 `project_status()` 取得新的 `query_id`，同一问题下的消息检索（`search_messages`、`read_conversation`、`get_project_context`、`read_project_updates`、`get_messages`）传入该 `query_id` 以复用本次已完整返回的原文，不能跨问题或跨对话沿用；需要核对细节或原文已不在上下文时用 `get_messages(force=True)` 重读。\n'
         '- 已配置项目先调用 `get_project_brief` 恢复资料，检查 `needs_review`、`feedback_changed` 和 `pending_messages`，再用 `read_project_updates` 查看新增或变更消息；范围清楚时不重复遍历全部群聊。\n'
         '- 没有资料或范围不清时，先用 `discover_chats` 按群名和项目别名找候选群，再对强相关群调用 `find_private_chats` 通过群成员标识发现候选私聊（`membership_only` 仅代表同群线索，需核实内容），必要时开启 `discover_chats(include_content_matches=True)` 查漏。\n'
-        '- 用 `search_messages` 限定 `chat_ids` 或 `read_conversation` 分批阅读；长消息 `text_truncated=True` 时用 `get_messages` 补读全文。结论依赖附件时调用 `read_attachment`，按 `detail.next_visual_offset` 和 `detail.next_start` 分页。\n'
-        '- `read_attachment` 返回 `prepared` 时表示图片已准备，必须实际看清图片才能引用图中结论；若客户端未直接展示工具返回的图片，必须使用客户端原生读图工具（如 Antigravity 的 `read_file`）打开返回的 `images[].original_path` 查看原图。\n'
+        '- 用 `search_messages` 限定 `chat_ids` 或 `read_conversation` 分批阅读；长消息 `text_truncated=True` 时用 `get_messages` 补读全文。结论依赖附件（图片、语音、视频、文档）时调用 `read_attachment`，按 `detail.next_visual_offset` 和 `detail.next_start` 分页。\n'
+        '- `read_attachment` 返回 `prepared` 时表示图片或视频关键帧已准备，必须实际看清图片才能引用画面结论；若客户端未直接展示工具返回的图片，必须使用客户端原生读图工具（如 Antigravity 的 `read_file`）打开返回的 `images[].original_path` 查看原图（视频需查看动态细节时也可直接用 `read_file` 查看 `detail.video_path`）；视频仅返回封面缩略图（`quality=thumbnail`）时不得冒充已看完原视频。\n'
         '- 用户明确指定项目的查询，默认在最终回答前调用 `save_project_brief` 按稳定 `key` 保存有出处的新增结论、修订和实际已读范围（`reviewed_sources` 仅传完整返回消息的 `review_source`，附件引用 `attachment_receipt.token`），无需再次询问；用户要求临时查询/不保存或资料与覆盖均无变化时跳过。\n'
         '- 仅在用户明确给出补充或纠正时调用 `remember_feedback`，仅在用户明确确认会话归属时调用 `set_project_chats`；不要把智能体推测写成用户确认。\n'
         '- 原生 MCP 工具尚未在当前会话加载时，可在用户已授权本机命令的前提下，使用同一虚拟环境的 `wechat-assistant call-tool <tool> --arguments-file <json>` 作为命令行桥接（先运行无参数 `call-tool` 查看定义），并如实区分命令行桥接与原生 MCP 调用。\n'
@@ -44,8 +44,8 @@ def antigravity_bundle(spec):
         '---\n'
         'name: wechat-chat\n'
         'description: >-\n'
-        '  查询本机微信群聊与私聊记录、按需读取图片/语音/文档附件、管理与保存有出处的微信项目资料（WeChat Chat MCP）。\n'
-        '  当用户要求查微信聊天、找群聊或私聊讨论、跟进微信里的项目进展、读取微信截图/语音/文件附件、备份重要微信附件或记录项目分工反馈时使用。\n'
+        '  查询本机微信群聊与私聊记录、按需读取图片/语音/视频/文档附件、管理与保存有出处的微信项目资料（WeChat Chat MCP）。\n'
+        '  当用户要求查微信聊天、找群聊或私聊讨论、跟进微信里的项目进展、读取微信截图/语音/视频/文件附件、备份重要微信附件或记录项目分工反馈时使用。\n'
         '---\n\n'
         '# 微信项目助理 (WeChat Chat MCP)\n\n'
         '通过 `wechat-chat` MCP 服务检索本机已同步的微信群聊、私聊与附件，并将有出处的项目资料保存到本地页面。\n\n'
@@ -54,8 +54,9 @@ def antigravity_bundle(spec):
         '2. **恢复已有项目资料**：若查询针对已有项目，先调用 `get_project_brief(project=...)` 查看现有条目、`needs_review`、`feedback_changed` 和 `pending_messages`，再用 `read_project_updates(project=..., query_id=...)` 补读新增与变更消息。\n'
         '3. **跨会话发现候选**：无现成范围时，先 `discover_chats(query=..., keywords=[...])` 按名称找群；对强相关群调用 `find_private_chats(group_ids=[...], query=..., keywords=[...])` 发现群成员私聊线索；必要时 `discover_chats(..., include_content_matches=True)` 查内容命中。\n'
         '4. **按范围分页精读**：用 `search_messages`（限定 `chat_ids`）或 `read_conversation`（支持 `since_ts`/`until_ts` 和 `next_before_id`）分批读取。遇到 `text_truncated=True` 的长消息用 `get_messages(ids=[...], query_id=..., force=True)` 补全文。\n'
-        '5. **读取图片、语音与文档附件**：调用 `read_attachment(message_id=..., start=0, visual_offset=0)`：\n'
+        '5. **读取图片、语音、视频与文档附件**：调用 `read_attachment(message_id=..., start=0, visual_offset=0)`：\n'
         '   - **图片识读**：状态为 `prepared` 时，若对话未直接渲染附图或预览字迹不清，立即用 Antigravity 的 `read_file` 工具读取返回结果中的 `images[].original_path` 查看原图；未实际看清图片不得臆测图中内容。\n'
+        '   - **视频读取**：按 30 秒分段提取本地 Whisper 音轨转写与关键帧；未展示附图时用 `read_file` 查看 `images[].original_path`，需要细看动态画面时也可直接用 `read_file` 打开 `detail.video_path`；若 `detail.quality=thumbnail` 则仅本地有封面，需提示用户在微信加载原视频后再重试。\n'
         '   - **文档与压缩包**：先按 `detail.next_visual_offset` 读完当前页附图，再按 `detail.next_start` 翻页；ZIP 先查看成员列表再传 `member` 读取指定文件。\n'
         '   - **重要附件备份**：需要保留本地副本时调用 `backup_attachment(message_id=...)`。\n'
         '6. **默认保存项目资料**：用户明确指定项目的查询，在最终答复前默认调用 `save_project_brief`（未建档的明确项目先 `configure_project`），提交稳定 `key` 的条目、完整返回消息的 `review_source` 及实际已读附件的 `attachment_receipt.token`。临时查询、用户要求不保存或无变化时跳过。\n\n'

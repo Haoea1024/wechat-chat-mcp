@@ -11,6 +11,7 @@ from .archive import verified_backup
 from .documents import read_document
 from .images import decode_dat, find_image_keys, normalized_image
 from .knowledge import digest, message_digest
+from .video import VIDEO_SUFFIXES, read_video
 
 
 def file_digest(path):
@@ -47,7 +48,7 @@ def delivery_image(path):
                 'resized': original_size != list(img.size), 'sha256': file_digest(target)}
 
 
-def read_for_client(reader, message, start, member, visual_offset):
+def read_for_client(reader, message, start, member, visual_offset, force=False):
     mid = message['id']
     result = {'message_id': mid, 'kind': message['kind'], 'member': member, 'text': '',
               'detail': {}, 'images': []}
@@ -68,6 +69,7 @@ def read_for_client(reader, message, start, member, visual_offset):
             return f'[附图 {len(images)}，交由当前客户端识读；此标记不是图片正文]'
 
         kind = loc['type'] & 0xffffffff
+        is_video_content = False
         if kind == 3:
             if start or member:
                 raise ValueError('图片不使用 start/member；附图分页使用 visual_offset。')
@@ -82,6 +84,37 @@ def read_for_client(reader, message, start, member, visual_offset):
             images.append(path)
             document = {'start': 0, 'total_units': 1, 'next_start': None, 'unit': 'image', 'parts': []}
             result['detail']['quality'] = quality
+        elif kind == 43:
+            if member:
+                raise ValueError('视频消息不使用 member；视频分段使用 start，同段附图使用 visual_offset。')
+            is_video_content = True
+            if backup:
+                original = path = Path(backup['path'])
+                quality = backup['quality']
+            else:
+                original, quality = reader._video_path(message, loc)
+                path = original
+            result['detail']['quality'] = quality
+            if quality == 'thumbnail':
+                if start > 0:
+                    raise ValueError('本机仅有视频封面缩略图，没有更多视频片段；请先在微信下载原视频后重试。')
+                path = reader._decode_image_file(original, folder / 'thumbnail.png')
+                images.append(path)
+                document = {
+                    'start': 0, 'total_units': 1, 'next_start': None,
+                    'unit': '视频封面缩略图（原视频未下载）',
+                    'parts': [{'index': 0, 'text': '[仅本地封面缩略图] 视频原文件尚未在微信下载或已被清理，无法转写语音或抽取其他画面；请先在微信中点击播放/下载该视频后重试 read_attachment(force=true)。'}],
+                }
+                result['detail']['video_downloaded'] = False
+            else:
+                source_hash = file_digest(path)
+                folder = folder / source_hash[:16] / 'video' / str(start)
+                folder.mkdir(parents=True, exist_ok=True)
+                document = read_video(path, folder, collect, transcribe=reader._transcribe_wav, start=start, count=1, force=force)
+                if file_digest(path) != source_hash:
+                    raise ValueError('读取期间视频附件发生变化，请重试。')
+                result['detail']['video_downloaded'] = True
+                result['detail']['video_path'] = str(path)
         else:
             path = Path(backup['path']) if backup else reader._file_path(message, loc)
             source_hash = file_digest(path)
@@ -98,7 +131,11 @@ def read_for_client(reader, message, start, member, visual_offset):
                     blob = archive.read(member)
                 target = folder / ('member' + Path(member).suffix)
                 target.write_bytes(blob)
-            document = read_document(target, folder, collect, start, count=1)
+            is_video_content = target.suffix.lower() in VIDEO_SUFFIXES
+            document = read_document(target, folder, collect, start, count=1, transcribe=reader._transcribe_wav, force=force)
+            if is_video_content:
+                result['detail']['video_downloaded'] = True
+                result['detail']['video_path'] = str(target)
             if file_digest(path) != source_hash:
                 raise ValueError('读取期间附件发生变化，请重试。')
         if visual_offset > len(images) or (images and visual_offset == len(images)):
@@ -110,11 +147,20 @@ def read_for_client(reader, message, start, member, visual_offset):
         listing = kind == 49 and not member and path.suffix.lower() == '.zip'
         result['status'] = 'listed' if listing else 'prepared' if images else 'partial' if document['next_start'] is not None else 'ready'
         result['detail'].update({k: v for k, v in document.items() if k != 'parts'})
+        if is_video_content:
+            if result['detail'].get('quality') == 'thumbnail':
+                method = '仅本地视频封面缩略图，交由当前客户端识读；原视频尚未下载。'
+                note = 'prepared 只表示封面缩略图已准备，不代表已读完完整视频。请先在微信下载原视频后再读取音轨和分段画面。'
+            else:
+                method = '视频音轨本地 Whisper 转写；关键帧交由当前客户端识读，无需 Codex CLI。'
+                note = 'prepared 只表示本段关键帧已准备。必须实际看到图片才能引用画面内容；未展示时用当前客户端读图工具打开 images[].original_path（支持视频的客户端也可查看 video_path）。先按 next_visual_offset 补齐本段附图，再按 next_start 读取下一段视频。'
+        else:
+            method = '文本本地提取；附图由当前客户端识读，无需 Codex CLI。'
+            note = 'prepared 只表示图片已准备。必须实际看到图片才能引用图中内容；未展示时用当前客户端读图工具打开 original_path。缩小图看不清时补读原图，不猜字。先读完当前页附图，再按 next_start 继续。'
         result['detail'].update(filename=path.name, archive_members_only=listing,
                                 visual_offset=visual_offset, total_images=len(images),
                                 next_visual_offset=visual_offset+len(selected) if visual_offset+len(selected)<len(images) else None,
-                                method='文本本地提取；附图由当前客户端识读，无需 Codex CLI。',
-                                note='prepared 只表示图片已准备。必须实际看到图片才能引用图中内容；未展示时用当前客户端读图工具打开 original_path。缩小图看不清时补读原图，不猜字。先读完当前页附图，再按 next_start 继续。')
+                                method=method, note=note)
         # Store prepared state for local preview/backup, never pretend it is OCR.
         with reader.store.connect() as db:
             current = db.execute('SELECT * FROM messages WHERE id=?', (mid,)).fetchone()
@@ -126,11 +172,15 @@ def read_for_client(reader, message, start, member, visual_offset):
         if not listing and (result['text'] or selected):
             files = {str(path): file_digest(path)}
             files.update({i['path']: i['sha256'] for i in result['images']})
+            coverage = {'kind': 'client_content', 'member': member, 'indices': [start],
+                        'image_indices': [i['index'] for i in result['images']],
+                        'total_units': document['total_units'],
+                        'note': '仅封面缩略图已提供，原视频未下载。' if result['detail'].get('quality') == 'thumbnail'
+                                else '仅凭据所列文本页/视频片段及附图内容已提供；不证明客户端已成功识读，不代表整份附件读完。'}
+            if 'quality' in result['detail']:
+                coverage['quality'] = result['detail']['quality']
             body = dict(message_id=mid, message_digest=message_digest(message),
-                        coverage={'kind': 'client_content', 'member': member, 'indices': [start],
-                                  'image_indices': [i['index'] for i in result['images']],
-                                  'total_units': document['total_units'],
-                                  'note': '仅凭据所列文本页及附图内容已提供；不证明客户端已成功识读，不代表整份文件读完。'},
+                        coverage=coverage,
                         files=files, content_digest=digest({'text': result['text'], 'files': files}))
             token = digest(body)
             with reader.store.connect() as db:

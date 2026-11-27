@@ -14,11 +14,14 @@ def _picture(blob, folder, vision):
     return vision(path)
 
 
-def read_document(path, folder, vision, start=0, count=5):
+def read_document(path, folder, vision, start=0, count=5, transcribe=None, force=False):
+    from .video import VIDEO_SUFFIXES, read_video
     path=Path(path);suffix=path.suffix.lower()
     folder.mkdir(parents=True,exist_ok=True)
     parts=[]
     unit='段'
+    if suffix in VIDEO_SUFFIXES:
+        return read_video(path,folder,vision,transcribe=transcribe,start=start,count=min(count,2),force=force)
     if suffix in {'.png','.jpg','.jpeg','.webp','.bmp','.gif','.tif','.tiff'}:
         total=1;unit='图片（动画/多帧文件仅首帧）'
         if start==0:parts=[dict(index=0,text=_picture(path.read_bytes(),folder,vision))]

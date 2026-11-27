@@ -118,7 +118,7 @@ class WeChatSource:
         self.cache.cleanup()
         result = {"ok": True, "at": now, "new_or_changed": changed, "conversations": total_tables,
                   "directory": directory,
-                  "note": "已同步本机记录；图片、语音与文件可按消息读取，未下载内容会单独标明。"}
+                  "note": "已同步本机记录；图片、语音、视频与文件可按消息读取，未下载内容会单独标明。"}
         store.set("sync", result)
         return result
 
